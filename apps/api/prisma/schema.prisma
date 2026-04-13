@@ -1,0 +1,283 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  contacts      Contact[]
+  conversations Conversation[]
+  phoneNumbers  PhoneNumber[]
+  webhookEvents WebhookEvent[]
+}
+
+model PhoneNumber {
+  id                String          @id @default(cuid())
+  number            String          @unique
+  label             String?
+  tenantId          String
+  provider          MessageProvider @default(WHATSAPP_CLOUD)
+  providerAccountId String?
+  externalId        String?
+  isActive          Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversations  Conversation[]
+  webhookEvents  WebhookEvent[]
+
+  @@index([tenantId, isActive])
+  @@index([externalId])
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  tenantId  String
+  role      UserRole @default(AGENT)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant                Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignments           Assignment[]
+  messages              Message[]
+  assignedConversations Conversation[] @relation("ConversationAssignedUser")
+  assignedByEvents      Assignment[]   @relation("AssignmentAssignedByUser")
+
+  @@index([tenantId, role, isActive])
+  @@index([tenantId, isActive])
+}
+
+model Contact {
+  id            String   @id @default(cuid())
+  name          String
+  phone         String
+  phoneRaw      String?
+  email         String?
+  tenantId      String
+  externalId    String?
+  flyImobLeadId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@unique([tenantId, phone])
+  @@index([tenantId, name])
+  @@index([externalId])
+  @@index([flyImobLeadId])
+}
+
+model Conversation {
+  id              String             @id @default(cuid())
+  tenantId        String
+  contactId       String
+  phoneNumberId   String
+  assignedUserId  String?
+  status          ConversationStatus @default(OPEN)
+  channel         Channel            @default(WHATSAPP)
+  mode            ConversationMode   @default(MANUAL)
+  priority        ConversationPriority @default(NORMAL)
+  subject         String?
+  lastMessageAt   DateTime?
+  lastInboundAt   DateTime?
+  lastOutboundAt  DateTime?
+  waitingSince    DateTime?
+  assignedAt      DateTime?
+  firstResponseAt DateTime?
+  closedAt        DateTime?
+  metaThreadId    String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contact      Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  phoneNumber  PhoneNumber @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
+  assignedUser User?       @relation("ConversationAssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
+
+  messages    Message[]
+  assignments Assignment[]
+
+  @@index([tenantId, updatedAt])
+  @@index([tenantId, status, updatedAt])
+  @@index([tenantId, channel, status, updatedAt])
+  @@index([tenantId, assignedUserId, updatedAt])
+  @@index([tenantId, priority, updatedAt])
+  @@index([tenantId, waitingSince])
+  @@index([tenantId, assignedAt])
+  @@index([phoneNumberId, updatedAt])
+  @@index([contactId, updatedAt])
+  @@index([tenantId, contactId, phoneNumberId, status])
+  @@index([metaThreadId])
+}
+
+model Message {
+  id                  String              @id @default(cuid())
+  conversationId      String
+  senderUserId        String?
+  senderType          MessageSenderType
+  direction           MessageDirection
+  type                MessageType
+  status              MessageStatus       @default(QUEUED)
+  provider            MessageProvider
+  externalMessageId   String?
+  externalStatus      String?
+  externalMediaId     String?
+  content             String?
+  mediaUrl            String?
+  storageKey          String?
+  mimeType            String?
+  fileName            String?
+  durationSeconds     Int?
+  transcription       String?
+  transcriptionStatus TranscriptionStatus?
+  failedReason        String?
+  sentAt              DateTime?
+  deliveredAt         DateTime?
+  readAt              DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderUser   User?        @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([status, createdAt])
+  @@index([direction, createdAt])
+  @@index([externalMediaId])
+  @@unique([provider, externalMessageId])
+}
+
+model Assignment {
+  id               String   @id @default(cuid())
+  conversationId   String
+  userId           String
+  assignedByUserId String?
+  assignedAt       DateTime @default(now())
+  unassignedAt     DateTime?
+  reason           String?
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedByUser User?        @relation("AssignmentAssignedByUser", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, assignedAt])
+  @@index([conversationId, unassignedAt])
+  @@index([userId, assignedAt])
+}
+
+model WebhookEvent {
+  id              String             @id @default(cuid())
+  tenantId        String
+  phoneNumberId   String?
+  provider        MessageProvider
+  eventType       String?
+  externalEventId String?
+  eventHash       String
+  payload         Json
+  receivedAt      DateTime           @default(now())
+  processedAt     DateTime?
+  status          WebhookEventStatus @default(RECEIVED)
+  errorMessage    String?
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  phoneNumber PhoneNumber? @relation(fields: [phoneNumberId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, eventHash])
+  @@index([tenantId, receivedAt])
+  @@index([phoneNumberId, receivedAt])
+  @@index([status, receivedAt])
+  @@index([externalEventId])
+}
+
+enum ConversationStatus {
+  OPEN
+  PENDING
+  CLOSED
+}
+
+enum ConversationMode {
+  MANUAL
+  AI
+}
+
+enum ConversationPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum Channel {
+  WHATSAPP
+  INSTAGRAM
+  FACEBOOK
+  WEBCHAT
+}
+
+enum UserRole {
+  MASTER
+  ADMIN
+  MANAGER
+  AGENT
+}
+
+enum MessageSenderType {
+  LEAD
+  AGENT
+  AI
+  SYSTEM
+}
+
+enum MessageType {
+  TEXT
+  AUDIO
+  IMAGE
+  DOCUMENT
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum MessageProvider {
+  WHATSAPP_CLOUD
+  INSTAGRAM
+  FACEBOOK
+  INTERNAL
+}
+
+enum WebhookEventStatus {
+  RECEIVED
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+enum TranscriptionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}

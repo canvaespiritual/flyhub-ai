@@ -1,0 +1,86 @@
+﻿+-- apps
+|   +-- apps\api
+|   |   +-- apps\api\prisma
+|   |   |   +-- apps\api\prisma\migrations
+|   |   |   |   +-- apps\api\prisma\migrations\20260411200130_init
+|   |   |   |   |   \-- apps\api\prisma\migrations\20260411200130_init\migration.sql
+|   |   |   |   +-- apps\api\prisma\migrations\20260411204832_multi_tenant
+|   |   |   |   |   \-- apps\api\prisma\migrations\20260411204832_multi_tenant\migration.sql
+|   |   |   |   +-- apps\api\prisma\migrations\20260411224247_message_model_v2
+|   |   |   |   |   \-- apps\api\prisma\migrations\20260411224247_message_model_v2\migration.sql
+|   |   |   |   \-- apps\api\prisma\migrations\migration_lock.toml
+|   |   |   +-- apps\api\prisma\schema.prisma
+|   |   |   \-- apps\api\prisma\seed.ts
+|   |   +-- apps\api\src
+|   |   |   +-- apps\api\src\lib
+|   |   |   |   +-- apps\api\src\lib\prisma.ts
+|   |   |   |   \-- apps\api\src\lib\realtime.ts
+|   |   |   +-- apps\api\src\routes
+|   |   |   |   +-- apps\api\src\routes\conversations.ts
+|   |   |   |   +-- apps\api\src\routes\health.ts
+|   |   |   |   +-- apps\api\src\routes\messages.ts
+|   |   |   |   \-- apps\api\src\routes\realtime.ts
+|   |   |   +-- apps\api\src\app.ts
+|   |   |   \-- apps\api\src\server.ts
+|   |   +-- apps\api\.env
+|   |   +-- apps\api\.env.example
+|   |   +-- apps\api\package.json
+|   |   \-- apps\api\tsconfig.json
+|   \-- apps\web
+|       +-- apps\web\app
+|       |   +-- apps\web\app\dashboard
+|       |   |   \-- apps\web\app\dashboard\page.tsx
+|       |   +-- apps\web\app\favicon.ico
+|       |   +-- apps\web\app\globals.css
+|       |   +-- apps\web\app\layout.tsx
+|       |   \-- apps\web\app\page.tsx
+|       +-- apps\web\components
+|       |   \-- apps\web\components\dashboard
+|       |       +-- apps\web\components\dashboard\ChatComposer.tsx
+|       |       +-- apps\web\components\dashboard\ChatWindow.tsx
+|       |       +-- apps\web\components\dashboard\ConversationList.tsx
+|       |       +-- apps\web\components\dashboard\LeadSidebar.tsx
+|       |       \-- apps\web\components\dashboard\MessageBubble.tsx
+|       +-- apps\web\lib
+|       |   +-- apps\web\lib\chat
+|       |   |   +-- apps\web\lib\chat\conversation-utils.ts
+|       |   |   \-- apps\web\lib\chat\message-utils.ts
+|       |   \-- apps\web\lib\api.ts
+|       +-- apps\web\mock
+|       |   +-- apps\web\mock\conversations.ts
+|       |   +-- apps\web\mock\lead.ts
+|       |   \-- apps\web\mock\messages.ts
+|       +-- apps\web\public
+|       |   +-- apps\web\public\file.svg
+|       |   +-- apps\web\public\globe.svg
+|       |   +-- apps\web\public\next.svg
+|       |   +-- apps\web\public\vercel.svg
+|       |   \-- apps\web\public\window.svg
+|       +-- apps\web\.env.local
+|       +-- apps\web\.gitignore
+|       +-- apps\web\AGENTS.md
+|       +-- apps\web\CLAUDE.md
+|       +-- apps\web\eslint.config.mjs
+|       +-- apps\web\next.config.ts
+|       +-- apps\web\next-env.d.ts
+|       +-- apps\web\package.json
+|       +-- apps\web\postcss.config.mjs
+|       +-- apps\web\README.md
+|       \-- apps\web\tsconfig.json
++-- docs
++-- infra
++-- packages
+|   \-- packages\shared
+|       +-- packages\shared\src
+|       |   +-- packages\shared\src\chat.ts
+|       |   +-- packages\shared\src\conversation.ts
+|       |   +-- packages\shared\src\index.ts
+|       |   \-- packages\shared\src\lead.ts
+|       +-- packages\shared\package.json
+|       \-- packages\shared\tsconfig.json
++-- package.json
++-- pnpm-lock.yaml
++-- pnpm-workspace.yaml
++-- PROJECT_STRUCTURE.md
++-- structure.txt
+\-- tsconfig.base.json

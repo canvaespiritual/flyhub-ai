@@ -1,0 +1,16 @@
+{
+  "name": "flyhub-ai",
+  "private": true,
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.8.1",
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "dev:api": "pnpm --filter api dev",
+    "build:web": "pnpm --filter web build",
+    "build:api": "pnpm --filter api build",
+    "prisma:generate": "pnpm --filter api prisma generate",
+    "prisma:migrate": "pnpm --filter api prisma migrate dev",
+    "prisma:studio": "pnpm --filter api prisma studio",
+    "prisma:seed": "pnpm --filter api prisma db seed"
+  }
+}
