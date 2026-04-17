@@ -603,7 +603,384 @@ a nova modelagem
 exatamente o que alterar
 e a lista completa de arquivos que vão mudar nessa rodada.
 
+-----
+
+Pensei durante dois segundos
+
+Estamos exatamente na virada entre:
+
+chat operacional funcionando
+e
+produto multiusuário de verdade
+
+Então a decisão agora é mais de arquitetura do que de bug.
+
+Onde estamos
+
+Hoje você já tem:
+
+chat funcionando
+realtime funcionando
+envio funcionando
+assign funcionando no backend
+schema já preparado com role, priority, assignedAt, waitingSince
+base pronta para multi-canal
+
+Ou seja: o core já saiu do MVP cru.
+
+O que eu sugiro fazer agora
+
+Eu não iria direto para a API do WhatsApp ainda.
+
+Porque falta uma camada essencial antes:
+
+camada de operação por perfil
+
+Você mesmo descreveu a estrutura certa:
+
+master/admin
+configurações gerais
+números / integrações
+usuários
+permissões
+visão ampla
+manager/gerente
+vê equipe
+redistribui conversas
+acompanha operação
+depois entra rotação, timeout, SLA
+agent/corretor
+vê só o que foi atribuído
+atende no dashboard estilo WhatsApp
+
+Isso está certíssimo.
+
+O que vai mudar agora se seguirmos na ordem certa
+
+Não precisa fazer 3 dashboards totalmente diferentes agora.
+
+O certo neste momento é:
+
+manter o mesmo dashboard base, mas mudar:
+
+o que cada perfil enxerga
+quais ações cada perfil pode fazer
+e depois criar áreas separadas de admin/gestão
+Em português claro
+agora:
+corretor/agente entra e vê só as conversas dele
+gerente/admin ainda podem ver tudo
+depois:
+criamos uma área master/admin
+criamos telas de gestão
+criamos rotação/fila/SLA
+pluga WhatsApp real
+O que vai acontecer no front se fizermos isso agora
+
+Se eu aplicar o próximo passo sugerido, o que muda no front será pouco, por enquanto:
+
+para o agente
+vai abrir o mesmo dashboard
+mas ele verá só as conversas atribuídas a ele
+para manager/admin
+abre o mesmo dashboard
+mas verá todas as conversas do tenant
+
+Ou seja:
+não é ainda a tela master completa
+é só a primeira camada de permissão.
+
+O que eu não faria agora
+
+Eu não tentaria agora construir ao mesmo tempo:
+
+área master completa
+área gerente completa
+rotação automática
+WhatsApp API real
+
+Isso mistura 4 blocos grandes e aumenta muito a chance de bagunça.
+
+Ordem que eu recomendo
+Etapa 1 — agora
+
+permissão por usuário
+
+agent vê só dele
+manager/admin veem tudo
+Etapa 2
+
+estrutura de área master
+
+página de configurações
+gestão de usuários
+números / integrações
+Etapa 3
+
+API do WhatsApp
+
+conectar número
+inbound/outbound real
+status reais
+Etapa 4
+
+automação operacional
+
+round-robin
+timeout
+redistribuição
+SLA
+Por que essa ordem é melhor
+
+Porque a API do WhatsApp vai jogar conversa real para dentro.
+
+Se você plugar isso antes de definir:
+
+quem vê o quê
+quem controla o quê
+quem recebe o quê
+
+você cria tráfego real em cima de uma operação ainda sem hierarquia pronta.
+
+Minha recomendação objetiva
+
+O próximo passo certo é fazer a camada mínima de permissão agora.
+
+Não muda muito a cara do front.
+Muda principalmente:
+
+backend de listagem
+frontend enviando currentUserId e currentUserRole
+comportamento do que aparece
+
+Depois disso, aí sim você decide entre:
+
+área master
+ou
+API do WhatsApp
+Resposta direta à sua pergunta
+
+Sim, no futuro o certo é ter:
+
+um dashboard operacional WhatsApp-like para atendente
+uma visão mais ampla para gerente
+uma área master/admin para configurações e integrações
+
+Mas eu não faria tudo isso agora de uma vez.
+
+Agora eu faria só:
+base de permissão + visibilidade por perfil.
+
+Se quiser, eu sigo exatamente nisso e te entrego o pacote mínimo dessa etapa.
+
+sim, em quais arquivos vai mexer pra isso acontecer? vamos na ordem sugerida então.. 
+Pensei durante alguns segundos
+
+Para essa etapa mínima de permissão, vamos mexer nestes arquivos:
+
+Backend
+apps/api/src/routes/conversations.ts
+Aqui entra a regra principal:
+agent vê só conversas com assignedUserId = currentUserId
+admin e manager veem tudo do tenant
+Frontend
+apps/web/lib/api.ts
+Aqui vamos passar junto na request:
+currentUserId
+currentUserRole
+apps/web/app/dashboard/page.tsx
+Aqui vamos ler do .env.local quem é o usuário atual e chamar getConversations(...) com esses dados.
+Tipos
+packages/shared/src/conversation.ts
+Só se ainda precisar alinhar algum campo de assignedUser.role ou respostas novas da API.
+packages/shared/src/chat.ts
+Provavelmente já está ok, porque você já incluiu UserRole, mas eu confiro se precisa ajuste fino.
+Ambiente
+apps/web/.env.local
+Vamos garantir que existam:
+NEXT_PUBLIC_CURRENT_USER_ID
+NEXT_PUBLIC_CURRENT_USER_ROLE
+O que não muda agora
+
+Ainda não vamos mexer em:
+
+layout master separado
+tela de configurações
+tela de usuários
+roleta automática
+timeout de redistribuição
+integração WhatsApp real
+
+Essa etapa é só para fazer o sistema começar a se comportar por perfil.
+
+O que vai acontecer depois dessa mudança
+
+Se você colocar no .env.local:
+
+como agent
+verá só as conversas atribuídas a esse user
+como manager/admin
+verá todas as conversas
+
+Ou seja, já vamos simular a hierarquia sem ainda construir os painéis diferentes.
+
+-------------------
+
+Estou desenvolvendo um sistema SaaS chamado FlyHub AI com arquitetura:
+
+* apps/api → Fastify + Prisma
+* apps/web → Next.js App Router
+* packages/shared → tipos compartilhados
+
+Quero continuar de um ponto já avançado do projeto, sem voltar para explicações básicas.
+
+## Estado atual do sistema
+
+Já está funcionando:
+
+* dashboard estilo WhatsApp
+* lista de conversas
+* chat em tempo real (SSE)
+* envio de mensagens
+* assign de conversa
+* filtro por usuário (agent só vê as dele)
+* seed funcional
+* schema atualizado via `prisma db push` (sem reset)
+
+## Banco (Prisma)
+
+Já temos:
+
+* Tenant
+* User
+* Conversation
+* Message
+* Contact
+* PhoneNumber
+* Assignment
+* WebhookEvent
+
+Conversation já possui:
+
+* assignedUserId
+* status
+* mode
+* channel
+* priority
+* timestamps completos
+
+User já possui:
+
+* role
+* isActive
+
+## Realtime
+
+Já funciona com:
+
+* message:new
+* conversation:mode_changed
+* conversation:assigned
+
+## API atual
+
+A rota GET /conversations já recebe:
+
+* tenantId
+* currentUserId
+* currentUserRole
+
+E já filtra corretamente para AGENT.
+
+## Decisão arquitetural
+
+Vamos usar 4 camadas de acesso:
+
+* MASTER → controla todos os tenants (nível SaaS)
+* ADMIN → controla uma operação (tenant)
+* MANAGER → gerencia equipe dentro do tenant
+* AGENT → atende leads
+
+Queremos implementar isso agora, antes do login completo, para evitar retrabalho.
+
+## Importante
+
+* NÃO queremos resetar banco
+* NÃO queremos usar prisma migrate (usar db push)
+* NÃO queremos refatoração grande
+* queremos mudanças incrementais e seguras
+
+## Objetivo desta etapa
+
+Implementar base para:
+
+1. Adicionar role MASTER no sistema
+
+2. Ajustar backend para suportar MASTER
+
+3. Garantir que:
+
+   * MASTER vê tudo
+   * ADMIN/MANAGER veem tudo do tenant
+   * AGENT vê apenas suas conversas
+
+4. Preparar base para login futuro
+
+## O que você deve fazer
+
+Peça os arquivos necessários nesta ordem:
+
+1. apps/api/prisma/schema.prisma
+2. apps/api/prisma/seed.ts
+3. apps/api/src/routes/conversations.ts
+4. packages/shared/src/chat.ts
+
+Depois disso, faça as alterações necessárias:
+
+* adicionar MASTER ao enum UserRole
+* ajustar tipos compartilhados
+* adaptar lógica da rota de conversations para incluir MASTER
+* atualizar seed para incluir usuário MASTER
+
+## Restrições
+
+* NÃO quebrar o que já está funcionando
+* NÃO remover campos existentes
+* NÃO mudar nomes desnecessariamente
+* manter tudo compatível com db push
+
+## Objetivo final
+
+Deixar o sistema pronto para:
+
+* login multiusuário real
+* multi-tenant SaaS
+* controle hierárquico completo
+
+Após isso, iremos para login.
+
+----------
+
+
 comandos: pnpm --filter api prisma db seed
 comandos: pnpm --filter web dev
 comandos: pnpm --filter api dev
 comandos: http://localhost:3333/api/conversations?tenantId=seed-tenant-operacao-brasilia
+🔐 LOGINS DISPONÍVEIS
+🧠 MASTER (nível máximo)
+Email: master@flyhub.com
+Senha: Master@123
+🛠️ ADMIN
+Email: admin@flyhub.com
+Senha: Admin@123
+🧩 GERENTE
+Email: gerente@flyhub.com
+Senha: Manager@123
+💬 ATENDENTE (RECOMENDADO PRA TESTAR)
+Email: atendente@flyhub.com
+Senha: Agent@123
+
+ou
+
+Email: atendente2@flyhub.com
+Senha: Agent@123

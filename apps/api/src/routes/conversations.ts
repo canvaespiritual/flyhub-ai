@@ -1,31 +1,34 @@
 import { publish } from '../lib/realtime.js'
+import { getSessionFromRequest } from '../lib/auth.js'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../lib/prisma.js'
+import {
+  buildConversationAccessWhere,
+  buildConversationListWhere,
+  canChangeConversationMode,
+  resolveAssignmentTarget
+} from '../lib/assignment-policy.js'
+import { autoAssignConversation } from '../lib/auto-assignment.js'
+import { isUserEligibleForAssignment } from '../lib/routing-policy.js'
 
 const paramsSchema = z.object({
   id: z.string().min(1)
 })
 
-const conversationsQuerySchema = z.object({
-  tenantId: z.string().min(1),
-  currentUserId: z.string().min(1),
-  currentUserRole: z.enum(['master', 'admin', 'manager', 'agent'])
-})
-
 const conversationMessagesQuerySchema = z.object({
-  tenantId: z.string().min(1),
+  tenantId: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional().default(30),
   before: z.string().datetime().optional()
 })
 
 const updateConversationModeSchema = z.object({
-  tenantId: z.string().min(1),
+  tenantId: z.string().min(1).optional(),
   mode: z.enum(['manual', 'ai'])
 })
 
 const updateConversationAssignmentSchema = z.object({
-  tenantId: z.string().min(1),
+  tenantId: z.string().min(1).optional(),
   userId: z.string().min(1).nullable().optional(),
   assignedByUserId: z.string().min(1).optional(),
   reason: z.string().trim().min(1).max(500).optional()
@@ -263,26 +266,29 @@ function serializeConversationUpdate(conversation: {
 
 export async function conversationRoutes(app: FastifyInstance) {
   app.get('/conversations', async (request, reply) => {
-    const parsedQuery = conversationsQuerySchema.safeParse(request.query)
+    const session = await getSessionFromRequest(request)
 
-    if (!parsedQuery.success) {
-      return reply.status(400).send({
-        message: 'tenantId, currentUserId and currentUserRole are required',
-        issues: parsedQuery.error.flatten()
+    if (!session) {
+      return reply.status(401).send({
+        message: 'Não autenticado'
       })
     }
 
-    const { tenantId, currentUserId, currentUserRole } = parsedQuery.data
+    const tenantId = session.user.tenantId
+    const currentUserId = session.user.id
+    const currentUserRole = session.user.role
 
-    const conversations = await prisma.conversation.findMany({
-      where: {
-        tenantId,
-        ...(currentUserRole === 'agent'
-          ? {
-              assignedUserId: currentUserId
-            }
-          : {})
-      },
+        const conversations = await prisma.conversation.findMany({
+      where: buildConversationListWhere(
+        {
+          id: currentUserId,
+          tenantId,
+          role: currentUserRole
+        },
+        {
+           allowAgentUnassigned: true
+        }
+      ),
       include: {
         contact: true,
         assignedUser: true,
@@ -331,6 +337,7 @@ export async function conversationRoutes(app: FastifyInstance) {
   app.get('/conversations/:id/messages', async (request, reply) => {
     const parsedParams = paramsSchema.safeParse(request.params)
     const parsedQuery = conversationMessagesQuerySchema.safeParse(request.query)
+    const session = await getSessionFromRequest(request)
 
     if (!parsedParams.success) {
       return reply.status(400).send({
@@ -345,14 +352,30 @@ export async function conversationRoutes(app: FastifyInstance) {
       })
     }
 
-    const { id } = parsedParams.data
-    const { tenantId, limit, before } = parsedQuery.data
+    if (!session) {
+      return reply.status(401).send({
+        message: 'Não autenticado'
+      })
+    }
 
-    const conversation = await prisma.conversation.findFirst({
-      where: {
+    const { id } = parsedParams.data
+    const { limit, before } = parsedQuery.data
+    const tenantId = session.user.tenantId
+    const currentUserId = session.user.id
+    const currentUserRole = session.user.role
+
+        const conversation = await prisma.conversation.findFirst({
+      where: buildConversationAccessWhere(
+        {
+          id: currentUserId,
+          tenantId,
+          role: currentUserRole
+        },
         id,
-        tenantId
-      },
+        {
+           allowAgentUnassigned: true
+        }
+      ),
       select: {
         id: true
       }
@@ -405,11 +428,7 @@ export async function conversationRoutes(app: FastifyInstance) {
 
   app.get('/conversations/:id/lead', async (request, reply) => {
     const parsedParams = paramsSchema.safeParse(request.params)
-    const parsedQuery = z
-      .object({
-        tenantId: z.string().min(1)
-      })
-      .safeParse(request.query)
+    const session = await getSessionFromRequest(request)
 
     if (!parsedParams.success) {
       return reply.status(400).send({
@@ -417,20 +436,29 @@ export async function conversationRoutes(app: FastifyInstance) {
       })
     }
 
-    if (!parsedQuery.success) {
-      return reply.status(400).send({
-        message: 'tenantId is required'
+    if (!session) {
+      return reply.status(401).send({
+        message: 'Não autenticado'
       })
     }
 
     const { id } = parsedParams.data
-    const { tenantId } = parsedQuery.data
+    const tenantId = session.user.tenantId
+    const currentUserId = session.user.id
+    const currentUserRole = session.user.role
 
-    const conversation = await prisma.conversation.findFirst({
-      where: {
+        const conversation = await prisma.conversation.findFirst({
+      where: buildConversationAccessWhere(
+        {
+          id: currentUserId,
+          tenantId,
+          role: currentUserRole
+        },
         id,
-        tenantId
-      },
+        {
+           allowAgentUnassigned: true
+        }
+      ),
       include: {
         contact: true
       }
@@ -459,6 +487,7 @@ export async function conversationRoutes(app: FastifyInstance) {
   app.patch('/conversations/:id/mode', async (request, reply) => {
     const parsedParams = paramsSchema.safeParse(request.params)
     const parsedBody = updateConversationModeSchema.safeParse(request.body)
+    const session = await getSessionFromRequest(request)
 
     if (!parsedParams.success) {
       return reply.status(400).send({
@@ -473,14 +502,30 @@ export async function conversationRoutes(app: FastifyInstance) {
       })
     }
 
-    const { id } = parsedParams.data
-    const { tenantId, mode } = parsedBody.data
+    if (!session) {
+      return reply.status(401).send({
+        message: 'Não autenticado'
+      })
+    }
 
-    const conversation = await prisma.conversation.findFirst({
-      where: {
+    const { id } = parsedParams.data
+    const { mode } = parsedBody.data
+    const tenantId = session.user.tenantId
+    const currentUserId = session.user.id
+    const currentUserRole = session.user.role
+
+        const conversation = await prisma.conversation.findFirst({
+      where: buildConversationAccessWhere(
+        {
+          id: currentUserId,
+          tenantId,
+          role: currentUserRole
+        },
         id,
-        tenantId
-      }
+        {
+           allowAgentUnassigned: false
+        }
+      )
     })
 
     if (!conversation) {
@@ -488,7 +533,27 @@ export async function conversationRoutes(app: FastifyInstance) {
         message: 'Conversation not found'
       })
     }
-
+        if (
+      !canChangeConversationMode(
+        {
+          id: currentUserId,
+          tenantId,
+          role: currentUserRole
+        },
+        {
+          id: conversation.id,
+          tenantId: conversation.tenantId,
+          assignedUserId: conversation.assignedUserId
+        },
+        {
+          allowAgentUnassigned: false
+        }
+      )
+    ) {
+      return reply.status(403).send({
+        message: 'You are not allowed to change this conversation mode'
+      })
+    }
     const updatedConversation = await prisma.conversation.update({
       where: {
         id
@@ -515,6 +580,7 @@ export async function conversationRoutes(app: FastifyInstance) {
   app.patch('/conversations/:id/assign', async (request, reply) => {
     const parsedParams = paramsSchema.safeParse(request.params)
     const parsedBody = updateConversationAssignmentSchema.safeParse(request.body)
+    const session = await getSessionFromRequest(request)
 
     if (!parsedParams.success) {
       return reply.status(400).send({
@@ -529,8 +595,18 @@ export async function conversationRoutes(app: FastifyInstance) {
       })
     }
 
+    if (!session) {
+      return reply.status(401).send({
+        message: 'Não autenticado'
+      })
+    }
+
     const { id } = parsedParams.data
-    const { tenantId, userId, assignedByUserId, reason } = parsedBody.data
+    const { userId, reason } = parsedBody.data
+    const tenantId = session.user.tenantId
+    const assignedByUserId = session.user.id
+    const currentUserId = session.user.id
+    const currentUserRole = session.user.role
 
     const conversation = await prisma.conversation.findFirst({
       where: {
@@ -548,30 +624,57 @@ export async function conversationRoutes(app: FastifyInstance) {
       })
     }
 
-    let targetUser:
-      | {
-          id: string
-          name: string
-          email: string
-          tenantId: string
-          role: 'MASTER' | 'ADMIN' | 'MANAGER' | 'AGENT'
-        }
-      | null = null
+        const assignmentDecision = resolveAssignmentTarget({
+      sessionUser: {
+        id: currentUserId,
+        tenantId,
+        role: currentUserRole
+      },
+      conversation: {
+        id: conversation.id,
+        tenantId: conversation.tenantId,
+        assignedUserId: conversation.assignedUserId,
+        assignedUser: conversation.assignedUser
+      },
+      requestedUserId: userId ?? null
+    })
 
-    if (userId) {
+    if (!assignmentDecision.ok) {
+      return reply.status(assignmentDecision.status).send({
+        message: assignmentDecision.message
+      })
+    }
+
+    let targetUser:
+  | {
+      id: string
+      name: string
+      email: string
+      tenantId: string
+      role: 'MASTER' | 'ADMIN' | 'MANAGER' | 'AGENT'
+      isActive: boolean
+      presenceStatus?: 'AVAILABLE' | 'PAUSED' | null
+    }
+  | null = null
+
+        const requestedTargetUserId = assignmentDecision.targetUserId
+
+    if (requestedTargetUserId) {
       targetUser = await prisma.user.findFirst({
         where: {
-          id: userId,
+          id: requestedTargetUserId,
           tenantId,
           isActive: true
         },
         select: {
-          id: true,
-          name: true,
-          email: true,
-          tenantId: true,
-          role: true
-        }
+  id: true,
+  name: true,
+  email: true,
+  tenantId: true,
+  role: true,
+  isActive: true,
+  presenceStatus: true
+}
       })
 
       if (!targetUser) {
@@ -579,24 +682,27 @@ export async function conversationRoutes(app: FastifyInstance) {
           message: 'Target user not found'
         })
       }
+      if (targetUser && !isUserEligibleForAssignment(targetUser)) {
+  return reply.status(400).send({
+    message: 'Target user is not eligible for assignment (inactive, paused or invalid role)'
+  })
+}
     }
 
-    if (assignedByUserId) {
-      const assignedByUser = await prisma.user.findFirst({
-        where: {
-          id: assignedByUserId,
-          tenantId
-        },
-        select: {
-          id: true
-        }
-      })
-
-      if (!assignedByUser) {
-        return reply.status(404).send({
-          message: 'assignedByUser not found'
-        })
+    const assignedByUser = await prisma.user.findFirst({
+      where: {
+        id: assignedByUserId,
+        tenantId
+      },
+      select: {
+        id: true
       }
+    })
+
+    if (!assignedByUser) {
+      return reply.status(404).send({
+        message: 'assignedByUser not found'
+      })
     }
 
     const now = new Date()
@@ -645,7 +751,7 @@ export async function conversationRoutes(app: FastifyInstance) {
           data: {
             conversationId: conversation.id,
             userId: targetUser.id,
-            assignedByUserId: assignedByUserId ?? null,
+            assignedByUserId: assignedByUserId,
             assignedAt: now,
             reason
           }
@@ -663,5 +769,81 @@ export async function conversationRoutes(app: FastifyInstance) {
     })
 
     return response
+  })
+  app.post('/conversations/:id/auto-assign', async (request, reply) => {
+    const parsedParams = paramsSchema.safeParse(request.params)
+    const session = await getSessionFromRequest(request)
+
+    if (!parsedParams.success) {
+      return reply.status(400).send({
+        message: 'Invalid conversation id'
+      })
+    }
+
+    if (!session) {
+      return reply.status(401).send({
+        message: 'Não autenticado'
+      })
+    }
+
+    const currentUserRole = session.user.role
+    const tenantId = session.user.tenantId
+    const { id } = parsedParams.data
+
+    if (
+      currentUserRole !== 'MASTER' &&
+      currentUserRole !== 'ADMIN' &&
+      currentUserRole !== 'MANAGER'
+    ) {
+      return reply.status(403).send({
+        message: 'Sem permissão para auto distribuir conversa'
+      })
+    }
+
+    try {
+      const result = await autoAssignConversation({
+        tenantId,
+        conversationId: id,
+        assignedByUserId: session.user.id,
+        reason: 'Auto assignment manual test'
+      })
+
+      const conversation = await prisma.conversation.findFirst({
+        where: {
+          id,
+          tenantId
+        },
+        include: {
+          assignedUser: true,
+          phoneNumber: true
+        }
+      })
+
+      if (conversation) {
+        const response = serializeConversationUpdate(conversation)
+
+        publish(tenantId, {
+          type: 'conversation:assigned',
+          payload: response
+        })
+
+        return {
+          ok: true,
+          skipped: result.skipped,
+          reason: result.reason,
+          conversation: response
+        }
+      }
+
+      return {
+        ok: true,
+        skipped: result.skipped,
+        reason: result.reason
+      }
+    } catch (error) {
+      return reply.status(500).send({
+        message: error instanceof Error ? error.message : 'Erro ao auto distribuir conversa'
+      })
+    }
   })
 }

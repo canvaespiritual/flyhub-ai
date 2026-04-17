@@ -18,6 +18,7 @@ model Tenant {
   conversations Conversation[]
   phoneNumbers  PhoneNumber[]
   webhookEvents WebhookEvent[]
+  sessions Session[]
 }
 
 model PhoneNumber {
@@ -47,6 +48,13 @@ model User {
   tenantId  String
   role      UserRole @default(AGENT)
   isActive  Boolean  @default(true)
+  presenceStatus PresenceStatus @default(AVAILABLE)
+
+  // 🔐 AUTH
+  passwordHash      String?
+  lastLoginAt       DateTime?
+  passwordUpdatedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -56,8 +64,33 @@ model User {
   assignedConversations Conversation[] @relation("ConversationAssignedUser")
   assignedByEvents      Assignment[]   @relation("AssignmentAssignedByUser")
 
+  // 🔐 SESSÕES
+  sessions Session[]
+
   @@index([tenantId, role, isActive])
   @@index([tenantId, isActive])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  tokenHash    String   @unique
+  userId       String
+  tenantId     String
+  expiresAt    DateTime
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  revokedAt    DateTime?
+
+  ipAddress    String?
+  userAgent    String?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@index([expiresAt])
 }
 
 model Contact {
@@ -232,6 +265,11 @@ enum UserRole {
   ADMIN
   MANAGER
   AGENT
+}
+
+enum PresenceStatus {
+  AVAILABLE
+  PAUSED
 }
 
 enum MessageSenderType {

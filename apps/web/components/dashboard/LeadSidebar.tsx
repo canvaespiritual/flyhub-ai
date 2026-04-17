@@ -6,7 +6,7 @@ type Props = {
 
 export function LeadSidebar({ lead }: Props) {
   return (
-    <aside className="border-l border-neutral-800 bg-[#111b21] p-4 text-white">
+    <aside className="h-full border-l border-neutral-800 bg-[#111b21] p-4 text-white overflow-y-auto">
       <h3 className="mb-4 text-lg">Lead</h3>
 
       <div className="space-y-2 text-sm">

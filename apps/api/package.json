@@ -15,9 +15,13 @@
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.1.0",
+    "@fastify/websocket": "^11.2.0",
     "@prisma/client": "^6.19.3",
+    "bcryptjs": "^3.0.3",
     "fastify": "^5.6.1",
+    "fastify-plugin": "^5.1.0",
     "zod": "^4.1.12"
   },
   "devDependencies": {

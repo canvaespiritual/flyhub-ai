@@ -1,72 +1,75 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { z } from 'zod'
+import type { FastifyInstance } from 'fastify'
 import { randomUUID } from 'node:crypto'
 import { subscribe, unsubscribe } from '../lib/realtime.js'
-
-const realtimeQuerySchema = z.object({
-  tenantId: z.string().min(1, 'tenantId is required')
-})
-
-type RawReply = FastifyReply['raw']
-type RawRequest = FastifyRequest['raw']
-
-function writeSseEvent(reply: RawReply, event: string, data: unknown) {
-  reply.write(`event: ${event}\n`)
-  reply.write(`data: ${JSON.stringify(data)}\n\n`)
-}
+import { getSessionFromRequest } from '../lib/auth.js'
 
 export async function realtimeRoutes(app: FastifyInstance) {
-  app.get('/realtime', async (request, reply) => {
-    const parsedQuery = realtimeQuerySchema.safeParse(request.query)
+  app.get('/realtime', { websocket: true }, async (socket, request) => {
+    const session = await getSessionFromRequest(request)
 
-    if (!parsedQuery.success) {
-      return reply.status(400).send({
-        message: 'tenantId is required',
-        issues: parsedQuery.error.flatten()
-      })
+    if (!session) {
+      socket.close(1008, 'Unauthorized')
+      return
     }
-
-    const { tenantId } = parsedQuery.data
-    const clientId = randomUUID()
-
-    reply.raw.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no'
-    })
-
-    reply.raw.flushHeaders?.()
 
     const client = {
-      id: clientId,
-      send: (data: unknown) => {
-        writeSseEvent(reply.raw, 'message', data)
-      }
+      id: randomUUID(),
+      userId: session.user.id,
+      tenantId: session.user.tenantId,
+      socket
     }
 
-    subscribe(tenantId, client)
+    subscribe(client)
 
-    writeSseEvent(reply.raw, 'connected', {
-      clientId,
-      tenantId,
-      connectedAt: new Date().toISOString()
-    })
+    try {
+      socket.send(
+        JSON.stringify({
+          type: 'connected',
+          payload: {
+            clientId: client.id,
+            tenantId: client.tenantId,
+            userId: client.userId,
+            connectedAt: new Date().toISOString()
+          }
+        })
+      )
+    } catch {
+      unsubscribe(client)
+      socket.close()
+      return
+    }
 
     const heartbeat = setInterval(() => {
-      writeSseEvent(reply.raw, 'heartbeat', {
-        ts: new Date().toISOString()
-      })
+      try {
+        socket.send(
+          JSON.stringify({
+            type: 'heartbeat',
+            payload: {
+              ts: new Date().toISOString()
+            }
+          })
+        )
+      } catch {
+        clearInterval(heartbeat)
+        unsubscribe(client)
+        socket.close()
+      }
     }, 25000)
 
-    const cleanup = () => {
+    socket.on('close', () => {
       clearInterval(heartbeat)
-      unsubscribe(tenantId, client)
-      reply.raw.end()
-    }
+      unsubscribe(client)
+    })
 
-    request.raw.on('close', cleanup)
-    request.raw.on('end', cleanup)
-    request.raw.on('error', cleanup)
+    socket.on('error', () => {
+      clearInterval(heartbeat)
+      unsubscribe(client)
+      socket.close()
+    })
+
+    socket.on('message', () => {
+      // reservado para futuro:
+      // typing, ack, presence, commands
+    })
   })
 }

@@ -2,15 +2,12 @@ import type {
   Conversation,
   ConversationMode,
   Lead,
-  Message,
-  UserRole
+  Message
 } from '@flyhub/shared'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
-const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID!
 
 export type SendMessagePayload = {
-  senderUserId?: string
   type: 'text' | 'audio' | 'image' | 'document'
   content?: string
 }
@@ -26,60 +23,9 @@ export type GetMessagesParams = {
   before?: string | null
 }
 
-export type UpdateConversationModeResponse = {
-  id: string
-  mode: ConversationMode
-  status: 'open' | 'pending' | 'closed'
-  updatedAt: string
-  assignedAt?: string
-  waitingSince?: string
-  firstResponseAt?: string
-  closedAt?: string
-  priority?: 'low' | 'normal' | 'high'
-  subject?: string
-  metaThreadId?: string
-  assignedUser?: {
-    id: string
-    name: string
-    email: string
-    role?: UserRole
-  } | null
-  phoneNumber: {
-    id: string
-    number: string
-    label?: string
-  }
-}
-
 export type AssignConversationPayload = {
   userId?: string | null
-  assignedByUserId?: string
   reason?: string
-}
-
-export type AssignConversationResponse = {
-  id: string
-  mode: ConversationMode
-  status: 'open' | 'pending' | 'closed'
-  updatedAt: string
-  assignedAt?: string
-  waitingSince?: string
-  firstResponseAt?: string
-  closedAt?: string
-  priority?: 'low' | 'normal' | 'high'
-  subject?: string
-  metaThreadId?: string
-  assignedUser?: {
-    id: string
-    name: string
-    email: string
-    role?: UserRole
-  } | null
-  phoneNumber: {
-    id: string
-    number: string
-    label?: string
-  }
 }
 
 export type ApiError = Error & {
@@ -106,32 +52,55 @@ async function parseApiError(res: Response, fallbackMessage: string): Promise<Ap
       : fallbackMessage
   ) as ApiError
 
-  if (typeof payload === 'object' && payload !== null) {
-    if ('code' in payload && typeof payload.code === 'string') {
-      error.code = payload.code
-    }
-
-    if ('requiresTemplate' in payload && typeof payload.requiresTemplate === 'boolean') {
-      error.requiresTemplate = payload.requiresTemplate
-    }
-  }
-
   error.status = res.status
-
   return error
 }
 
-export async function getConversations(
-  currentUserId: string,
-  currentUserRole: UserRole
-): Promise<Conversation[]> {
-  const searchParams = new URLSearchParams({
-    tenantId: TENANT_ID,
-    currentUserId,
-    currentUserRole
+async function apiFetch(url: string, options?: RequestInit) {
+  const headers = new Headers(options?.headers)
+
+  if (options?.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  console.log('apiFetch =>', {
+  url,
+  method: options?.method ?? 'GET',
+  body: options?.body
+})
+
+return fetch(url, {
+  ...options,
+  credentials: 'include',
+  headers
+})
+}
+
+export async function login(email: string, password: string) {
+  const res = await apiFetch(`${API_BASE_URL}/auth/login`, {
+    method: 'POST',
+    body: JSON.stringify({ email, password })
   })
 
-  const res = await fetch(`${API_BASE_URL}/conversations?${searchParams.toString()}`, {
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro no login')
+  }
+
+  return res.json()
+}
+
+export async function getCurrentUser() {
+  const res = await apiFetch(`${API_BASE_URL}/auth/me`)
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Não autenticado')
+  }
+
+  return res.json()
+}
+
+export async function getConversations(): Promise<Conversation[]> {
+  const res = await apiFetch(`${API_BASE_URL}/conversations`, {
     cache: 'no-store'
   })
 
@@ -146,9 +115,7 @@ export async function getMessages(
   conversationId: string,
   params?: GetMessagesParams
 ): Promise<GetMessagesResponse> {
-  const searchParams = new URLSearchParams({
-    tenantId: TENANT_ID
-  })
+  const searchParams = new URLSearchParams()
 
   if (params?.limit) {
     searchParams.set('limit', String(params.limit))
@@ -158,7 +125,7 @@ export async function getMessages(
     searchParams.set('before', params.before)
   }
 
-  const res = await fetch(
+  const res = await apiFetch(
     `${API_BASE_URL}/conversations/${conversationId}/messages?${searchParams.toString()}`,
     { cache: 'no-store' }
   )
@@ -171,10 +138,9 @@ export async function getMessages(
 }
 
 export async function getLead(conversationId: string): Promise<Lead | null> {
-  const res = await fetch(
-    `${API_BASE_URL}/conversations/${conversationId}/lead?tenantId=${TENANT_ID}`,
-    { cache: 'no-store' }
-  )
+  const res = await apiFetch(`${API_BASE_URL}/conversations/${conversationId}/lead`, {
+    cache: 'no-store'
+  })
 
   if (!res.ok) {
     throw await parseApiError(res, 'Erro ao buscar lead')
@@ -186,20 +152,14 @@ export async function getLead(conversationId: string): Promise<Lead | null> {
 export async function updateConversationMode(
   conversationId: string,
   mode: ConversationMode
-): Promise<UpdateConversationModeResponse> {
-  const res = await fetch(`${API_BASE_URL}/conversations/${conversationId}/mode`, {
+) {
+  const res = await apiFetch(`${API_BASE_URL}/conversations/${conversationId}/mode`, {
     method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      tenantId: TENANT_ID,
-      mode
-    })
+    body: JSON.stringify({ mode })
   })
 
   if (!res.ok) {
-    throw await parseApiError(res, 'Erro ao atualizar modo da conversa')
+    throw await parseApiError(res, 'Erro ao atualizar modo')
   }
 
   return res.json()
@@ -207,18 +167,13 @@ export async function updateConversationMode(
 
 export async function assignConversation(
   conversationId: string,
-  payload: AssignConversationPayload
-): Promise<AssignConversationResponse> {
-  const res = await fetch(`${API_BASE_URL}/conversations/${conversationId}/assign`, {
+  payload?: AssignConversationPayload
+) {
+  const res = await apiFetch(`${API_BASE_URL}/conversations/${conversationId}/assign`, {
     method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json'
-    },
     body: JSON.stringify({
-      tenantId: TENANT_ID,
-      userId: payload.userId ?? null,
-      assignedByUserId: payload.assignedByUserId,
-      reason: payload.reason
+      userId: payload?.userId ?? undefined,
+      reason: payload?.reason ?? undefined
     })
   })
 
@@ -233,15 +188,10 @@ export async function sendMessage(
   conversationId: string,
   payload: SendMessagePayload
 ): Promise<Message> {
-  const res = await fetch(`${API_BASE_URL}/messages`, {
+  const res = await apiFetch(`${API_BASE_URL}/messages`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
     body: JSON.stringify({
-      tenantId: TENANT_ID,
       conversationId,
-      senderUserId: payload.senderUserId,
       type: payload.type,
       content: payload.content
     })
@@ -249,6 +199,77 @@ export async function sendMessage(
 
   if (!res.ok) {
     throw await parseApiError(res, 'Erro ao enviar mensagem')
+  }
+
+  return res.json()
+}
+export type User = {
+  id: string
+  name: string
+  email: string
+  role: 'master' | 'admin' | 'manager' | 'agent'
+  tenantId: string
+  isActive: boolean
+  presenceStatus: 'available' | 'paused'
+   eligibleForAssignment: boolean
+}
+export type PresenceStatus = 'available' | 'paused'
+
+export type PresenceUser = {
+  id: string
+  name: string
+  email: string
+  role: 'master' | 'admin' | 'manager' | 'agent'
+  tenantId: string
+  isActive: boolean
+  presenceStatus: PresenceStatus
+}
+export async function getUsers(): Promise<User[]> {
+  const res = await apiFetch(`${API_BASE_URL}/users`, {
+    cache: 'no-store'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao buscar usuários')
+  }
+
+  return res.json()
+}
+
+export async function getMyPresence(): Promise<PresenceUser> {
+  const res = await apiFetch(`${API_BASE_URL}/presence/me`, {
+    cache: 'no-store'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao buscar presença')
+  }
+
+  return res.json()
+}
+
+export async function updateMyPresence(
+  status: PresenceStatus
+): Promise<PresenceUser> {
+  const res = await apiFetch(`${API_BASE_URL}/presence/me`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status })
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao atualizar presença')
+  }
+
+  return res.json()
+}
+
+export async function logout() {
+  const res = await apiFetch(`${API_BASE_URL}/auth/logout`, {
+    method: 'POST'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao sair')
   }
 
   return res.json()

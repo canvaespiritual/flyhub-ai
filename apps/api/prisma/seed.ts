@@ -1,8 +1,14 @@
 import { PrismaClient } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
 async function main() {
+  const masterPasswordHash = await bcrypt.hash('Master@123', 10)
+  const adminPasswordHash = await bcrypt.hash('Admin@123', 10)
+  const managerPasswordHash = await bcrypt.hash('Manager@123', 10)
+  const agentPasswordHash = await bcrypt.hash('Agent@123', 10)
+
   const tenant = await prisma.tenant.upsert({
     where: {
       id: 'seed-tenant-operacao-brasilia'
@@ -38,24 +44,28 @@ async function main() {
       isActive: true
     }
   })
+
   const master = await prisma.user.upsert({
-  where: {
-    email: 'master@flyhub.com'
-  },
-  update: {
-    name: 'Master FlyHub',
-    tenantId: tenant.id,
-    role: 'MASTER',
-    isActive: true
-  },
-  create: {
-    name: 'Master FlyHub',
-    email: 'master@flyhub.com',
-    tenantId: tenant.id,
-    role: 'MASTER',
-    isActive: true
-  }
-})
+    where: {
+      email: 'master@flyhub.com'
+    },
+    update: {
+      name: 'Master FlyHub',
+      tenantId: tenant.id,
+      role: 'MASTER',
+      isActive: true,
+      passwordHash: masterPasswordHash
+    },
+    create: {
+      name: 'Master FlyHub',
+      email: 'master@flyhub.com',
+      tenantId: tenant.id,
+      role: 'MASTER',
+      isActive: true,
+      passwordHash: masterPasswordHash
+    }
+  })
+
   const admin = await prisma.user.upsert({
     where: {
       email: 'admin@flyhub.com'
@@ -64,14 +74,16 @@ async function main() {
       name: 'Admin FlyHub',
       tenantId: tenant.id,
       role: 'ADMIN',
-      isActive: true
+      isActive: true,
+      passwordHash: adminPasswordHash
     },
     create: {
       name: 'Admin FlyHub',
       email: 'admin@flyhub.com',
       tenantId: tenant.id,
       role: 'ADMIN',
-      isActive: true
+      isActive: true,
+      passwordHash: adminPasswordHash
     }
   })
 
@@ -83,14 +95,16 @@ async function main() {
       name: 'Gerente Brasília',
       tenantId: tenant.id,
       role: 'MANAGER',
-      isActive: true
+      isActive: true,
+      passwordHash: managerPasswordHash
     },
     create: {
       name: 'Gerente Brasília',
       email: 'gerente@flyhub.com',
       tenantId: tenant.id,
       role: 'MANAGER',
-      isActive: true
+      isActive: true,
+      passwordHash: managerPasswordHash
     }
   })
 
@@ -102,14 +116,16 @@ async function main() {
       name: 'Atendente 1',
       tenantId: tenant.id,
       role: 'AGENT',
-      isActive: true
+      isActive: true,
+      passwordHash: agentPasswordHash
     },
     create: {
       name: 'Atendente 1',
       email: 'atendente@flyhub.com',
       tenantId: tenant.id,
       role: 'AGENT',
-      isActive: true
+      isActive: true,
+      passwordHash: agentPasswordHash
     }
   })
 
@@ -121,14 +137,16 @@ async function main() {
       name: 'Atendente 2',
       tenantId: tenant.id,
       role: 'AGENT',
-      isActive: true
+      isActive: true,
+      passwordHash: agentPasswordHash
     },
     create: {
       name: 'Atendente 2',
       email: 'atendente2@flyhub.com',
       tenantId: tenant.id,
       role: 'AGENT',
-      isActive: true
+      isActive: true,
+      passwordHash: agentPasswordHash
     }
   })
 
