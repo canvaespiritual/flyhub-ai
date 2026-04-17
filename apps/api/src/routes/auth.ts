@@ -56,12 +56,12 @@ export async function authRoutes(app: FastifyInstance) {
     await touchUserLastLogin(user.id)
 
     reply.setCookie(SESSION_COOKIE_NAME, rawToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: Math.floor(SESSION_TTL_MS / 1000)
-    })
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  path: '/',
+  maxAge: Math.floor(SESSION_TTL_MS / 1000)
+})
 
     return {
       user: serializeUser(user)
@@ -88,11 +88,11 @@ export async function authRoutes(app: FastifyInstance) {
     await revokeSessionByToken(token)
 
     reply.clearCookie(SESSION_COOKIE_NAME, {
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production'
-    })
+  path: '/',
+  httpOnly: true,
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  secure: process.env.NODE_ENV === 'production'
+})
 
     return { ok: true }
   })
