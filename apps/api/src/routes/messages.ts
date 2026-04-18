@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../lib/prisma.js'
 import { canOperateConversation } from '../lib/assignment-policy.js'
+import { sendWhatsAppTextMessage } from '../lib/whatsapp.js'
 
 const createMessageSchema = z.object({
   tenantId: z.string().min(1, 'tenantId é obrigatório').optional(),
@@ -68,15 +69,16 @@ export async function messageRoutes(app: FastifyInstance) {
     const currentUserRole = session.user.role
 
     const conversation = await prisma.conversation.findFirst({
-      where: {
-        id: conversationId,
-        tenantId
-      },
-      include: {
-        phoneNumber: true,
-        assignedUser: true
-      }
-    })
+  where: {
+    id: conversationId,
+    tenantId
+  },
+  include: {
+    contact: true,
+    phoneNumber: true,
+    assignedUser: true
+  }
+})
 
     if (!conversation) {
       return reply.status(404).send({
@@ -159,6 +161,29 @@ export async function messageRoutes(app: FastifyInstance) {
     }
 
     const now = new Date()
+    if (type !== 'text') {
+  return reply.status(400).send({
+    message: 'Only text messages are supported in this first WhatsApp sending version'
+  })
+}
+
+if (!conversation.phoneNumber.externalId) {
+  return reply.status(400).send({
+    message: 'Phone number is not configured with WhatsApp externalId'
+  })
+}
+
+if (!conversation.contact.phone) {
+  return reply.status(400).send({
+    message: 'Contact phone is missing'
+  })
+}
+
+await sendWhatsAppTextMessage({
+  phoneNumberId: conversation.phoneNumber.externalId,
+  to: conversation.contact.phone,
+  text: content!.trim()
+})
 
     const message = await prisma.$transaction(async (tx) => {
       const createdMessage = await tx.message.create({
@@ -168,7 +193,7 @@ export async function messageRoutes(app: FastifyInstance) {
           senderType: 'AGENT',
           direction: 'OUTBOUND',
           type: mapMessageTypeToPrisma(type),
-          status: 'QUEUED',
+          status: 'SENT',
           provider: conversation.phoneNumber.provider,
           content: content ?? ''
         }
