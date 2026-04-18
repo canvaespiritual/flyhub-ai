@@ -32,6 +32,20 @@ export function getMessagePreview(message?: Message): string {
     case 'document':
       return prefix + '📄 Documento'
 
+    case 'video':
+      return prefix + '🎬 Vídeo'
+
+    case 'location':
+      if (message.locationName?.trim()) {
+        return prefix + `📍 ${message.locationName.trim()}`
+      }
+
+      if (message.locationAddress?.trim()) {
+        return prefix + `📍 ${message.locationAddress.trim()}`
+      }
+
+      return prefix + '📍 Localização'
+
     default:
       return prefix + 'Mensagem'
   }
@@ -50,6 +64,11 @@ export function isMediaMessage(message: Message): boolean {
   return (
     message.type === 'audio' ||
     message.type === 'image' ||
-    message.type === 'document'
+    message.type === 'document' ||
+    message.type === 'video'
   )
+}
+
+export function isLocationMessage(message: Message): boolean {
+  return message.type === 'location'
 }

@@ -53,24 +53,195 @@ function getStatusChecks(status?: Message['status']) {
   }
 }
 
+function buildGoogleMapsUrl(message: Message) {
+  const hasCoordinates =
+    typeof message.latitude === 'number' &&
+    typeof message.longitude === 'number'
+
+  if (hasCoordinates) {
+    return `https://www.google.com/maps?q=${message.latitude},${message.longitude}`
+  }
+
+  const query = [message.locationName, message.locationAddress]
+    .filter(Boolean)
+    .join(' ')
+    .trim()
+
+  if (!query) return null
+
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+}
+
+function getDocumentLabel(message: Message) {
+  if (message.fileName?.trim()) return message.fileName.trim()
+  if (message.mimeType?.trim()) return message.mimeType.trim()
+  return 'Documento'
+}
+
 export function MessageBubble({ message }: Props) {
   const isOutgoing = isOutgoingMessage(message)
   const metaLabel = getMetaLabel(message)
   const statusChecks = isOutgoing ? getStatusChecks(message.status) : null
+  const mapsUrl = message.type === 'location' ? buildGoogleMapsUrl(message) : null
 
   function renderContent() {
     switch (message.type) {
       case 'text':
-        return <p className="whitespace-pre-wrap break-words">{message.content ?? ''}</p>
-
-      case 'audio':
-        return <p className="italic text-white/80">🎤 Áudio (renderização futura)</p>
+        return (
+          <p className="whitespace-pre-wrap break-words">
+            {message.content ?? ''}
+          </p>
+        )
 
       case 'image':
-        return <p className="italic text-white/80">🖼️ Imagem (renderização futura)</p>
+        return (
+          <div className="space-y-2">
+            {message.mediaUrl ? (
+              <a
+                href={message.mediaUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="block"
+              >
+                <img
+                  src={message.mediaUrl}
+                  alt={message.content || 'Imagem enviada'}
+                  loading="lazy"
+                  className="max-h-[320px] w-auto max-w-full rounded-lg object-contain"
+                />
+              </a>
+            ) : (
+              <p className="italic text-white/80">🖼️ Imagem indisponível</p>
+            )}
+
+            {message.content && message.content !== '[image]' && (
+              <p className="whitespace-pre-wrap break-words">{message.content}</p>
+            )}
+          </div>
+        )
+
+      case 'audio':
+        return (
+          <div className="space-y-2">
+            {message.mediaUrl ? (
+              <audio
+                controls
+                preload="metadata"
+                className="max-w-full"
+              >
+                <source src={message.mediaUrl} type={message.mimeType || undefined} />
+                Seu navegador não suporta reprodução de áudio.
+              </audio>
+            ) : (
+              <p className="italic text-white/80">🎤 Áudio indisponível</p>
+            )}
+
+            {message.content &&
+              message.content !== '[audio]' &&
+              message.content !== '[audio too large]' && (
+                <p className="whitespace-pre-wrap break-words">{message.content}</p>
+              )}
+          </div>
+        )
+
+      case 'video':
+        return (
+          <div className="space-y-2">
+            {message.mediaUrl ? (
+              <video
+                controls
+                preload="metadata"
+                playsInline
+                className="max-h-[360px] w-full rounded-lg bg-black"
+              >
+                <source src={message.mediaUrl} type={message.mimeType || undefined} />
+                Seu navegador não suporta reprodução de vídeo.
+              </video>
+            ) : (
+              <p className="italic text-white/80">🎬 Vídeo indisponível</p>
+            )}
+
+            {message.content &&
+              message.content !== '[video]' &&
+              message.content !== '[video too large]' && (
+                <p className="whitespace-pre-wrap break-words">{message.content}</p>
+              )}
+          </div>
+        )
 
       case 'document':
-        return <p className="italic text-white/80">📄 Documento (renderização futura)</p>
+        return (
+          <div className="space-y-2">
+            {message.mediaUrl ? (
+              <a
+                href={message.mediaUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="block rounded-lg bg-white/10 px-3 py-2 transition hover:bg-white/15"
+              >
+                <div className="font-medium">📄 {getDocumentLabel(message)}</div>
+                <div className="mt-1 text-xs text-white/70">
+                  {message.mimeType || 'Arquivo'}
+                </div>
+                <div className="mt-2 text-xs underline underline-offset-2">
+                  Abrir documento
+                </div>
+              </a>
+            ) : (
+              <p className="italic text-white/80">📄 Documento indisponível</p>
+            )}
+
+            {message.content &&
+              message.content !== '[document]' &&
+              message.content !== '[document too large]' && (
+                <p className="whitespace-pre-wrap break-words">{message.content}</p>
+              )}
+          </div>
+        )
+
+      case 'location':
+        return (
+          <div className="space-y-2">
+            <div className="rounded-lg bg-white/10 px-3 py-2">
+              <div className="font-medium">📍 Localização</div>
+
+              {message.locationName && (
+                <div className="mt-1 text-sm font-medium">{message.locationName}</div>
+              )}
+
+              {message.locationAddress && (
+                <div className="mt-1 text-sm text-white/80">
+                  {message.locationAddress}
+                </div>
+              )}
+
+              {typeof message.latitude === 'number' &&
+                typeof message.longitude === 'number' && (
+                  <div className="mt-2 text-xs text-white/70">
+                    {message.latitude}, {message.longitude}
+                  </div>
+                )}
+
+              {mapsUrl && (
+                <a
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-block text-sm underline underline-offset-2"
+                >
+                  Abrir no mapa
+                </a>
+              )}
+            </div>
+
+            {message.content &&
+              message.content !== '[location]' &&
+              message.content !== message.locationName &&
+              message.content !== message.locationAddress && (
+                <p className="whitespace-pre-wrap break-words">{message.content}</p>
+              )}
+          </div>
+        )
 
       default:
         return <p>Mensagem não suportada</p>
