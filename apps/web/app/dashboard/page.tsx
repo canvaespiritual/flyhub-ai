@@ -262,15 +262,23 @@ export default function DashboardPage() {
     })
   }
 
-  function appendMessageIfMissing(message: Message) {
-    setMessages((prev) => {
-      if (prev.some((item) => item.id === message.id)) {
-        return prev
-      }
+ function upsertMessage(message: Message) {
+  setMessages((prev) => {
+    const existingIndex = prev.findIndex((item) => item.id === message.id)
 
+    if (existingIndex === -1) {
       return [...prev, message]
-    })
-  }
+    }
+
+    const next = [...prev]
+    next[existingIndex] = {
+      ...next[existingIndex],
+      ...message
+    }
+
+    return next
+  })
+}
 
   async function loadConversations() {
     const data = await getConversations()
@@ -451,7 +459,7 @@ export default function DashboardPage() {
             const incomingMessage = parsed.payload
 
             if (incomingMessage.conversationId === selectedConversationId) {
-              appendMessageIfMissing(incomingMessage)
+              upsertMessage(incomingMessage)
             }
 
             let foundConversation = false
@@ -554,7 +562,7 @@ const mobileLeadWhatsAppLink = mobileLeadPhone
       setErrorMessage(null)
 
       const newMessage = await sendMessage(selectedConversationId, payload)
-      appendMessageIfMissing(newMessage)
+      upsertMessage(newMessage)
       await loadConversations()
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error)
