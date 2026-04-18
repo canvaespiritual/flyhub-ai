@@ -10,20 +10,44 @@ const createMessageSchema = z.object({
   tenantId: z.string().min(1, 'tenantId é obrigatório').optional(),
   conversationId: z.string().min(1, 'conversationId é obrigatório'),
   senderUserId: z.string().min(1).optional(),
-  type: z.enum(['text', 'audio', 'image', 'document']),
+  type: z.enum(['text', 'audio', 'image', 'document', 'video', 'location']),
   content: z.string().optional()
 })
 
-function mapMessageTypeToPrisma(type: 'text' | 'audio' | 'image' | 'document') {
-  return type.toUpperCase() as 'TEXT' | 'AUDIO' | 'IMAGE' | 'DOCUMENT'
+function mapMessageTypeToPrisma(
+  type: 'text' | 'audio' | 'image' | 'document' | 'video' | 'location'
+) {
+  return type.toUpperCase() as
+    | 'TEXT'
+    | 'AUDIO'
+    | 'IMAGE'
+    | 'DOCUMENT'
+    | 'VIDEO'
+    | 'LOCATION'
 }
 
 function mapMessageSenderTypeFromPrisma(senderType: 'LEAD' | 'AGENT' | 'AI' | 'SYSTEM') {
   return senderType.toLowerCase()
 }
 
-function mapMessageTypeFromPrisma(type: 'TEXT' | 'AUDIO' | 'IMAGE' | 'DOCUMENT') {
-  return type.toLowerCase()
+function mapMessageTypeFromPrisma(
+  type: 'TEXT' | 'AUDIO' | 'IMAGE' | 'DOCUMENT' | 'VIDEO' | 'LOCATION'
+) {
+  switch (type) {
+    case 'AUDIO':
+      return 'audio'
+    case 'IMAGE':
+      return 'image'
+    case 'DOCUMENT':
+      return 'document'
+    case 'VIDEO':
+      return 'video'
+    case 'LOCATION':
+      return 'location'
+    case 'TEXT':
+    default:
+      return 'text'
+  }
 }
 
 function mapMessageStatusFromPrisma(status: 'QUEUED' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED') {
@@ -226,6 +250,10 @@ const waResponse = await sendWhatsAppTextMessage({
       mimeType: message.mimeType ?? undefined,
       fileName: message.fileName ?? undefined,
       durationSeconds: message.durationSeconds ?? undefined,
+      latitude: message.latitude ?? undefined,
+      longitude: message.longitude ?? undefined,
+      locationName: message.locationName ?? undefined,
+      locationAddress: message.locationAddress ?? undefined,
       status: mapMessageStatusFromPrisma(message.status),
       createdAt: message.createdAt.toISOString()
     }

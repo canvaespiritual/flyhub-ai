@@ -175,6 +175,10 @@ model Message {
   mimeType            String?
   fileName            String?
   durationSeconds     Int?
+  latitude            Float?
+  longitude           Float?
+  locationName        String?
+  locationAddress     String?
   transcription       String?
   transcriptionStatus TranscriptionStatus?
   failedReason        String?
@@ -284,6 +288,8 @@ enum MessageType {
   AUDIO
   IMAGE
   DOCUMENT
+  VIDEO
+  LOCATION
 }
 
 enum MessageDirection {

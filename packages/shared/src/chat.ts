@@ -1,4 +1,10 @@
-export type MessageType = 'text' | 'audio' | 'image' | 'document'
+export type MessageType =
+  | 'text'
+  | 'audio'
+  | 'image'
+  | 'document'
+  | 'video'
+  | 'location'
 
 export type MessageStatus = 'queued' | 'sent' | 'delivered' | 'read' | 'failed'
 
@@ -31,6 +37,10 @@ export interface Message {
   mimeType?: string
   fileName?: string
   durationSeconds?: number
+    latitude?: number
+  longitude?: number
+  locationName?: string
+  locationAddress?: string
 
   status: MessageStatus
   createdAt: string

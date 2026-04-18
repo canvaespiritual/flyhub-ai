@@ -76,7 +76,9 @@ function mapMessageSenderType(senderType: 'LEAD' | 'AGENT' | 'AI' | 'SYSTEM') {
   }
 }
 
-function mapMessageType(type: 'TEXT' | 'AUDIO' | 'IMAGE' | 'DOCUMENT') {
+function mapMessageType(
+  type: 'TEXT' | 'AUDIO' | 'IMAGE' | 'DOCUMENT' | 'VIDEO' | 'LOCATION'
+) {
   switch (type) {
     case 'TEXT':
       return 'text'
@@ -86,6 +88,10 @@ function mapMessageType(type: 'TEXT' | 'AUDIO' | 'IMAGE' | 'DOCUMENT') {
       return 'image'
     case 'DOCUMENT':
       return 'document'
+    case 'VIDEO':
+      return 'video'
+    case 'LOCATION':
+      return 'location'
     default:
       return 'text'
   }
@@ -183,13 +189,17 @@ function serializeMessage(
     conversationId: string
     senderType: 'LEAD' | 'AGENT' | 'AI' | 'SYSTEM'
     direction: 'INBOUND' | 'OUTBOUND'
-    type: 'TEXT' | 'AUDIO' | 'IMAGE' | 'DOCUMENT'
+    type: 'TEXT' | 'AUDIO' | 'IMAGE' | 'DOCUMENT' | 'VIDEO' | 'LOCATION'
     status: 'QUEUED' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED'
     content: string | null
     mediaUrl: string | null
     mimeType: string | null
     fileName: string | null
     durationSeconds: number | null
+        latitude: number | null
+    longitude: number | null
+    locationName: string | null
+    locationAddress: string | null
     createdAt: Date
     senderUser?: {
       id: string
@@ -210,6 +220,10 @@ function serializeMessage(
     mimeType: message.mimeType ?? undefined,
     fileName: message.fileName ?? undefined,
     durationSeconds: message.durationSeconds ?? undefined,
+        latitude: message.latitude ?? undefined,
+    longitude: message.longitude ?? undefined,
+    locationName: message.locationName ?? undefined,
+    locationAddress: message.locationAddress ?? undefined,
     status: mapMessageStatus(message.status),
     createdAt: message.createdAt.toISOString(),
     senderUser: message.senderUser

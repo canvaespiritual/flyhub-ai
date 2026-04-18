@@ -983,4 +983,14 @@ Senha: Agent@123
 ou
 
 Email: atendente2@flyhub.com
+
 Senha: Agent@123
+Campo	Valor
+Server / Host	metro.proxy.rlwy.net
+Port	49794
+Database	railway
+User	postgres
+Password	FCRCvjWbxoWMFqcNzrgkkQsBYkuaezpt
+
+login e senha amazon: gustavopradoc@gmail.com
+senha: Crailgra272@
