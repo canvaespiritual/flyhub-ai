@@ -179,7 +179,7 @@ if (!conversation.contact.phone) {
   })
 }
 
-await sendWhatsAppTextMessage({
+const waResponse = await sendWhatsAppTextMessage({
   phoneNumberId: conversation.phoneNumber.externalId,
   to: conversation.contact.phone,
   text: content!.trim()
@@ -195,7 +195,9 @@ await sendWhatsAppTextMessage({
           type: mapMessageTypeToPrisma(type),
           status: 'SENT',
           provider: conversation.phoneNumber.provider,
-          content: content ?? ''
+          content: content ?? '',
+          externalMessageId: waResponse.messages?.[0]?.id ?? null,
+          externalStatus: 'sent'
         }
       })
 

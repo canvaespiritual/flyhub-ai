@@ -92,6 +92,42 @@ function sortConversationList(conversations: Conversation[]) {
   })
 }
 
+function normalizePhoneForWhatsApp(phone?: string) {
+  if (!phone) return ''
+
+  let digits = phone.replace(/\D/g, '')
+
+  if (digits.startsWith('55') && digits.length === 12) {
+    digits = digits.slice(0, 4) + '9' + digits.slice(4)
+  }
+
+  return digits
+}
+
+function formatPhone(phone?: string) {
+  if (!phone) return '—'
+
+  const digits = normalizePhoneForWhatsApp(phone)
+
+  if (digits.startsWith('55') && digits.length === 13) {
+    const country = digits.slice(0, 2)
+    const ddd = digits.slice(2, 4)
+    const first = digits.slice(4, 9)
+    const second = digits.slice(9)
+    return `+${country} (${ddd}) ${first}-${second}`
+  }
+
+  if (digits.startsWith('55') && digits.length === 12) {
+    const country = digits.slice(0, 2)
+    const ddd = digits.slice(2, 4)
+    const first = digits.slice(4, 8)
+    const second = digits.slice(8)
+    return `+${country} (${ddd}) ${first}-${second}`
+  }
+
+  return phone
+}
+
 function canCurrentUserSeeConversation(
   conversation: Conversation,
   currentUser: CurrentUser | null
@@ -505,6 +541,12 @@ export default function DashboardPage() {
   const selectedConversation =
     conversations.find((conversation) => conversation.id === selectedConversationId) ?? null
 
+  const mobileLeadPhone = normalizePhoneForWhatsApp(lead?.phone)
+const mobileLeadPhoneFormatted = formatPhone(lead?.phone)
+const mobileLeadWhatsAppLink = mobileLeadPhone
+  ? `https://wa.me/${mobileLeadPhone}`
+  : null  
+
   async function handleSendMessage(payload: SendTextMessagePayload) {
     if (!selectedConversationId) return
 
@@ -738,28 +780,47 @@ export default function DashboardPage() {
           />
         )}
 
-        {mobileView === 'chat' && (
-          <ChatWindow
-            selectedConversation={selectedConversation}
-            messages={messages}
-            lead={lead}
-            currentUserId={currentUserId}
-            currentUserRole={currentUserRole}
-            users={users}
-            myPresence={myPresence}
-            updatingPresence={updatingPresence}
-            onUpdatePresence={handleUpdatePresence}
-            onBack={handleBack}
-            onSendMessage={handleSendMessage}
-            onChangeMode={handleChangeMode}
-            onAssignConversation={handleAssignConversation}
-            assigningConversation={assigningConversationId === selectedConversation.id}
-            changingMode={changingMode}
-            hasMoreMessages={hasMoreMessages}
-            loadingOlderMessages={loadingOlderMessages}
-            onLoadOlderMessages={loadOlderMessages}
-          />
-        )}
+          {mobileView === 'chat' && (
+  <>
+    {lead && mobileLeadWhatsAppLink ? (
+      <div className="border-b border-neutral-800 bg-[#111b21] px-4 py-2 text-sm">
+        <div className="flex items-center justify-between">
+          <span className="text-neutral-400">Telefone:</span>
+
+          <a
+            href={mobileLeadWhatsAppLink}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[#53bdeb] underline underline-offset-2"
+          >
+            {mobileLeadPhoneFormatted}
+          </a>
+        </div>
+      </div>
+    ) : null}
+
+    <ChatWindow
+      selectedConversation={selectedConversation}
+      messages={messages}
+      lead={lead}
+      currentUserId={currentUserId}
+      currentUserRole={currentUserRole}
+      users={users}
+      myPresence={myPresence}
+      updatingPresence={updatingPresence}
+      onUpdatePresence={handleUpdatePresence}
+      onBack={handleBack}
+      onSendMessage={handleSendMessage}
+      onChangeMode={handleChangeMode}
+      onAssignConversation={handleAssignConversation}
+      assigningConversation={assigningConversationId === selectedConversation.id}
+      changingMode={changingMode}
+      hasMoreMessages={hasMoreMessages}
+      loadingOlderMessages={loadingOlderMessages}
+      onLoadOlderMessages={loadOlderMessages}
+    />
+  </>
+)}
       </div>
     </main>
   )

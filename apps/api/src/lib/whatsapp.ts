@@ -71,3 +71,22 @@ export async function sendWhatsAppTextMessage(params: {
     `WhatsApp send error: ${JSON.stringify(firstAttempt.data)}`
   )
 }
+export async function markWhatsAppMessageAsRead(params: {
+  phoneNumberId: string
+  messageId: string
+}) {
+  const url = `${WHATSAPP_API_URL}/${params.phoneNumberId}/messages`
+
+  await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      status: 'read',
+      message_id: params.messageId
+    })
+  })
+}

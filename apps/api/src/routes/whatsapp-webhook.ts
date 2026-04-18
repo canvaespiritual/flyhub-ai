@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { prisma } from '../lib/prisma.js'
 import { publish } from '../lib/realtime.js'
 import { autoAssignConversation } from '../lib/auto-assignment.js'
+import { markWhatsAppMessageAsRead } from '../lib/whatsapp.js'
 
 type WhatsAppWebhookPayload = {
   object?: string
@@ -30,7 +31,24 @@ type WhatsAppWebhookPayload = {
             body?: string
           }
         }>
-        statuses?: Array<unknown>
+        statuses?: Array<{
+  id?: string
+  status?: string
+  timestamp?: string
+  recipient_id?: string
+  conversation?: {
+    id?: string
+    expiration_timestamp?: string
+    origin?: {
+      type?: string
+    }
+  }
+  pricing?: {
+    billable?: boolean
+    pricing_model?: string
+    category?: string
+  }
+}>
       }
     }>
   }>
@@ -38,7 +56,16 @@ type WhatsAppWebhookPayload = {
 
 function normalizePhone(value?: string | null) {
   if (!value) return null
-  return value.replace(/\D/g, '')
+
+  let phone = value.replace(/\D/g, '')
+
+  // regra Brasil
+  if (phone.startsWith('55') && phone.length === 12) {
+    // 55 + DDD (2) + número (8) → inserir 9
+    phone = phone.slice(0, 4) + '9' + phone.slice(4)
+  }
+
+  return phone
 }
 
 function mapInboundMessageType(
@@ -86,7 +113,28 @@ function mapRealtimeMessage(message: {
     createdAt: message.createdAt.toISOString()
   }
 }
+const STATUS_ORDER = {
+  QUEUED: 0,
+  SENT: 1,
+  DELIVERED: 2,
+  READ: 3,
+  FAILED: -1
+} as const
 
+function mapMetaStatusToPrisma(status?: string) {
+  if (status === 'sent') return 'SENT'
+  if (status === 'delivered') return 'DELIVERED'
+  if (status === 'read') return 'READ'
+  if (status === 'failed') return 'FAILED'
+  return null
+}
+
+function shouldUpdateStatus(current: string, incoming: string) {
+  if (incoming === 'FAILED') return true
+
+  return STATUS_ORDER[incoming as keyof typeof STATUS_ORDER] >
+    STATUS_ORDER[current as keyof typeof STATUS_ORDER]
+}
 export async function whatsappWebhookRoutes(app: FastifyInstance) {
   app.get('/webhooks/whatsapp', async (request, reply) => {
     const query = request.query as Record<string, string | undefined>
@@ -158,7 +206,56 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
           }
 
           const tenantId = phoneNumber.tenantId
+// 🔥 PROCESSAR STATUS DA META
+for (const statusEvent of value.statuses ?? []) {
+  const externalMessageId = statusEvent.id
+  const mappedStatus = mapMetaStatusToPrisma(statusEvent.status)
 
+  if (!externalMessageId || !mappedStatus) continue
+
+  const existingMessage = await prisma.message.findFirst({
+    where: {
+      provider: 'WHATSAPP_CLOUD',
+      externalMessageId
+    }
+  })
+
+  if (!existingMessage) {
+    request.log.warn(
+      { externalMessageId },
+      'Status recebido sem mensagem correspondente'
+    )
+    continue
+  }
+
+  if (!shouldUpdateStatus(existingMessage.status, mappedStatus)) {
+    request.log.info(
+      {
+        externalMessageId,
+        current: existingMessage.status,
+        incoming: mappedStatus
+      },
+      'Status ignorado (duplicado ou regressão)'
+    )
+    continue
+  }
+
+  await prisma.message.update({
+    where: { id: existingMessage.id },
+    data: {
+      status: mappedStatus,
+      externalStatus: statusEvent.status
+    }
+  })
+
+  publish(tenantId, {
+    type: 'message:new',
+    payload: mapRealtimeMessage({
+      ...existingMessage,
+      status: mappedStatus
+    })
+  })
+}
           for (const inbound of value.messages ?? []) {
             const inboundExternalId = inbound.id
             const inboundFrom = normalizePhone(inbound.from)
@@ -166,22 +263,30 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
             const inboundText = inbound.text?.body?.trim() ?? ''
 
             if (!inboundExternalId || !inboundFrom) {
-              continue
-            }
+  continue
+}
 
-            const existingMessage = await prisma.message.findFirst({
-              where: {
-                provider: 'WHATSAPP_CLOUD',
-                externalMessageId: inboundExternalId
-              },
-              select: {
-                id: true
-              }
-            })
+const existingMessage = await prisma.message.findFirst({
+  where: {
+    provider: 'WHATSAPP_CLOUD',
+    externalMessageId: inboundExternalId
+  },
+  select: {
+    id: true
+  }
+})
 
-            if (existingMessage) {
-              continue
-            }
+if (existingMessage) {
+  continue
+}
+
+// 🔥 só marca como lido se for mensagem nova
+if (phoneNumber.externalId) {
+  await markWhatsAppMessageAsRead({
+    phoneNumberId: phoneNumber.externalId,
+    messageId: inboundExternalId
+  })
+}
 
             const timestampMs = inbound.timestamp
               ? Number(inbound.timestamp) * 1000
@@ -275,7 +380,7 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
                   provider: 'WHATSAPP_CLOUD',
                   externalMessageId: inboundExternalId,
                   externalStatus: 'received',
-                  content: inboundText
+                  content: inboundText || `[${inbound.type}]`
                 }
               })
 
