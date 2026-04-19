@@ -10,6 +10,7 @@ import {
   sendWhatsAppMediaMessage
 } from '../lib/whatsapp.js'
 import { uploadBufferToStorage } from '../lib/storage.js'
+import { convertAudioToOggOpus } from '../lib/audio-conversion.js'
 
 const createMessageSchema = z.object({
   tenantId: z.string().min(1, 'tenantId é obrigatório').optional(),
@@ -492,58 +493,93 @@ export async function messageRoutes(app: FastifyInstance) {
 
     const mediaType = type as OutboundMediaType
 
-    if (!uploadFile) {
-      return reply.status(400).send({
-        message: 'File is required for media messages'
-      })
-    }
-        let correctedMimeType = uploadFile.mimeType
+if (!uploadFile) {
+  return reply.status(400).send({
+    message: 'File is required for media messages'
+  })
+}
 
-    if (mediaType === 'audio') {
-      if (uploadFile.fileName?.toLowerCase().endsWith('.ogg')) {
-        correctedMimeType = 'audio/ogg'
-      } else if (uploadFile.fileName?.toLowerCase().endsWith('.mp3')) {
-        correctedMimeType = 'audio/mpeg'
-      } else if (uploadFile.fileName?.toLowerCase().endsWith('.m4a')) {
-        correctedMimeType = 'audio/mp4'
-      }
-    }
-        let correctedFileName = uploadFile.fileName || `${mediaType}_${Date.now()}`
+let correctedMimeType = uploadFile.mimeType
 
-    if (mediaType === 'audio') {
-      if (correctedMimeType === 'audio/ogg') {
-        correctedFileName = correctedFileName.replace(/\.[^.]+$/i, '') + '.ogg'
-      } else if (correctedMimeType === 'audio/mpeg') {
-        correctedFileName = correctedFileName.replace(/\.[^.]+$/i, '') + '.mp3'
-      } else if (correctedMimeType === 'audio/mp4') {
-        correctedFileName = correctedFileName.replace(/\.[^.]+$/i, '') + '.m4a'
-      }
-    }
-           console.log('[MEDIA_MESSAGE_RECEIVED]', {
-      conversationId,
-      tenantId,
-      mediaType,
-      fileName: correctedFileName,
-      originalFileName: uploadFile.fileName,
-      mimeType: correctedMimeType,
-      originalMimeType: uploadFile.mimeType,
-      size: uploadFile.size,
-      content
+if (mediaType === 'audio') {
+  if (uploadFile.fileName?.toLowerCase().endsWith('.ogg')) {
+    correctedMimeType = 'audio/ogg'
+  } else if (uploadFile.fileName?.toLowerCase().endsWith('.mp3')) {
+    correctedMimeType = 'audio/mpeg'
+  } else if (uploadFile.fileName?.toLowerCase().endsWith('.m4a')) {
+    correctedMimeType = 'audio/mp4'
+  }
+}
+
+let correctedFileName = uploadFile.fileName || `${mediaType}_${Date.now()}`
+
+if (mediaType === 'audio') {
+  if (correctedMimeType === 'audio/ogg') {
+    correctedFileName = correctedFileName.replace(/\.[^.]+$/i, '') + '.ogg'
+  } else if (correctedMimeType === 'audio/mpeg') {
+    correctedFileName = correctedFileName.replace(/\.[^.]+$/i, '') + '.mp3'
+  } else if (correctedMimeType === 'audio/mp4') {
+    correctedFileName = correctedFileName.replace(/\.[^.]+$/i, '') + '.m4a'
+  }
+}
+
+let processedBuffer = uploadFile.buffer
+let processedMimeType = correctedMimeType
+let processedFileName = correctedFileName
+
+if (mediaType === 'audio') {
+  try {
+    const converted = await convertAudioToOggOpus({
+      inputBuffer: uploadFile.buffer
     })
 
-        if (!validateMimeTypeForMessageType(mediaType, correctedMimeType)) {
-      return reply.status(400).send({
-        message: `Invalid mime type for ${mediaType}: ${correctedMimeType}`
-      })
-    }
+    processedBuffer = converted.buffer
+    processedMimeType = converted.mimeType
+    processedFileName =
+      correctedFileName.replace(/\.[^.]+$/i, '') +
+      '.' +
+      converted.fileExtension
 
-        const detectedType = detectMessageTypeFromMimeType(correctedMimeType)
+    console.log('[AUDIO_CONVERTED]', {
+      originalMime: uploadFile.mimeType,
+      finalMime: processedMimeType,
+      finalFileName: processedFileName,
+      sizeBefore: uploadFile.buffer.length,
+      sizeAfter: processedBuffer.length
+    })
+  } catch (err) {
+    console.error('[AUDIO_CONVERSION_FAILED]', err)
+    return reply.status(500).send({
+      message: 'Audio conversion failed'
+    })
+  }
+}
 
-    if (!detectedType || detectedType !== mediaType) {
-      return reply.status(400).send({
-        message: `Uploaded file does not match declared type "${mediaType}"`
-      })
-    }
+console.log('[MEDIA_MESSAGE_RECEIVED]', {
+  conversationId,
+  tenantId,
+  mediaType,
+  fileName: processedFileName,
+  originalFileName: uploadFile.fileName,
+  mimeType: processedMimeType,
+  originalMimeType: uploadFile.mimeType,
+  size: uploadFile.size,
+  content
+})
+
+if (!validateMimeTypeForMessageType(mediaType, processedMimeType)) {
+  return reply.status(400).send({
+    message: `Invalid mime type for ${mediaType}: ${processedMimeType}`
+  })
+}
+
+const detectedType = detectMessageTypeFromMimeType(processedMimeType)
+
+if (!detectedType || detectedType !== mediaType) {
+  return reply.status(400).send({
+    message: `Uploaded file does not match declared type "${mediaType}"`
+  })
+}
 
     const maxFileSize = getMaxFileSizeByType(mediaType)
 
@@ -553,14 +589,14 @@ export async function messageRoutes(app: FastifyInstance) {
       })
     }
 
-        const safeFileName = sanitizeFileName(correctedFileName)
-    const storageKey = `${getStoragePrefixByType(mediaType)}/${tenantId}/${conversationId}/${Date.now()}-${safeFileName}`
+       const safeFileName = sanitizeFileName(processedFileName)
+const storageKey = `${getStoragePrefixByType(mediaType)}/${tenantId}/${conversationId}/${Date.now()}-${safeFileName}`
 
-        const storageUpload = await uploadBufferToStorage({
-      key: storageKey,
-      body: uploadFile.buffer,
-      contentType: correctedMimeType
-    })
+const storageUpload = await uploadBufferToStorage({
+  key: storageKey,
+  body: processedBuffer,
+  contentType: processedMimeType
+})
 
         console.log('[MEDIA_STORAGE_UPLOAD_DONE]', {
       conversationId,
@@ -569,11 +605,11 @@ export async function messageRoutes(app: FastifyInstance) {
     })
 
     const mediaUploadResponse = await uploadWhatsAppMedia({
-      phoneNumberId: conversation.phoneNumber.externalId,
-      fileBuffer: uploadFile.buffer,
-      mimeType: correctedMimeType,
-      fileName: safeFileName
-    })
+  phoneNumberId: conversation.phoneNumber.externalId,
+  fileBuffer: processedBuffer,
+  mimeType: processedMimeType,
+  fileName: processedFileName
+})
 
         console.log('[MEDIA_META_UPLOAD_DONE]', {
       conversationId,
@@ -620,7 +656,7 @@ export async function messageRoutes(app: FastifyInstance) {
           content: content ?? '',
           mediaUrl: storageUpload.url,
           storageKey: storageUpload.key,
-          mimeType: correctedMimeType,
+          mimeType: processedMimeType,
           fileName: safeFileName,
           externalMediaId: mediaUploadResponse.id,
           externalMessageId,
