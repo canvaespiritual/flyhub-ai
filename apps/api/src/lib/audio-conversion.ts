@@ -1,8 +1,8 @@
 import ffmpeg from 'fluent-ffmpeg'
-import ffmpegPath from 'ffmpeg-static'
 import { PassThrough } from 'stream'
 
-ffmpeg.setFfmpegPath(ffmpegPath as string)
+// ⚠️ usa ffmpeg do sistema (Railway via nixpacks)
+ffmpeg.setFfmpegPath('ffmpeg')
 
 type ConvertAudioOptions = {
   inputBuffer: Buffer
@@ -16,34 +16,38 @@ export async function convertAudioToOggOpus({
   fileExtension: string
 }> {
   return new Promise((resolve, reject) => {
-    const inputStream = new PassThrough()
-    const outputStream = new PassThrough()
+    try {
+      const inputStream = new PassThrough()
+      const outputStream = new PassThrough()
 
-    const chunks: Buffer[] = []
+      const chunks: Buffer[] = []
 
-    inputStream.end(inputBuffer)
+      inputStream.end(inputBuffer)
 
-    ffmpeg(inputStream)
-      .inputFormat('webm') // navegador geralmente grava webm
-      .audioCodec('libopus')
-      .format('ogg')
-      .on('error', (err) => {
-        console.error('[FFMPEG_ERROR]', err)
-        reject(err)
-      })
-      .on('end', () => {
-        const buffer = Buffer.concat(chunks)
-
-        resolve({
-          buffer,
-          mimeType: 'audio/ogg',
-          fileExtension: 'ogg'
+      ffmpeg(inputStream)
+        // tenta detectar automaticamente o formato
+        .audioCodec('libopus')
+        .format('ogg')
+        .on('error', (err: Error) => {
+          console.error('[FFMPEG_ERROR]', err)
+          reject(err)
         })
-      })
-      .pipe(outputStream)
+        .on('end', () => {
+          const buffer = Buffer.concat(chunks)
 
-    outputStream.on('data', (chunk) => {
-      chunks.push(chunk)
-    })
+          resolve({
+            buffer,
+            mimeType: 'audio/ogg',
+            fileExtension: 'ogg'
+          })
+        })
+        .pipe(outputStream)
+
+      outputStream.on('data', (chunk) => {
+        chunks.push(chunk)
+      })
+    } catch (err) {
+      reject(err)
+    }
   })
 }
