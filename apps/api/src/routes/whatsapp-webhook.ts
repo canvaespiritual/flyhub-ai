@@ -88,6 +88,14 @@ type WhatsAppWebhookPayload = {
             pricing_model?: string
             category?: string
           }
+                    errors?: Array<{
+            code?: number
+            title?: string
+            message?: string
+            error_data?: {
+              details?: string
+            }
+          }>
         }>
       }
     }>
@@ -428,6 +436,14 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
   externalMessageId,
   status: statusEvent.status
 })
+            if (statusEvent.status === 'failed') {
+              console.error('[WHATSAPP_STATUS_FAILED_DETAILS]', {
+                externalMessageId,
+                status: statusEvent.status,
+                recipientId: statusEvent.recipient_id,
+                errors: statusEvent.errors
+              })
+            }
             const existingMessage = await prisma.message.findFirst({
               where: {
                 provider: 'WHATSAPP_CLOUD',
