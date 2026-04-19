@@ -5,7 +5,10 @@ import type {
   Message
 } from '@flyhub/shared'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
+const API_BASE_URL =
+  process.env.NODE_ENV === 'production'
+    ? '/api-proxy'
+    : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
 
 export type SendMessagePayload = {
   type: 'text' | 'audio' | 'image' | 'document' | 'video'
