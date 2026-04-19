@@ -497,6 +497,17 @@ export async function messageRoutes(app: FastifyInstance) {
         message: 'File is required for media messages'
       })
     }
+        let correctedMimeType = uploadFile.mimeType
+
+    if (mediaType === 'audio') {
+      if (uploadFile.fileName?.toLowerCase().endsWith('.ogg')) {
+        correctedMimeType = 'audio/ogg'
+      } else if (uploadFile.fileName?.toLowerCase().endsWith('.mp3')) {
+        correctedMimeType = 'audio/mpeg'
+      } else if (uploadFile.fileName?.toLowerCase().endsWith('.m4a')) {
+        correctedMimeType = 'audio/mp4'
+      }
+    }
         console.log('[MEDIA_MESSAGE_RECEIVED]', {
       conversationId,
       tenantId,
@@ -547,7 +558,7 @@ export async function messageRoutes(app: FastifyInstance) {
     const mediaUploadResponse = await uploadWhatsAppMedia({
       phoneNumberId: conversation.phoneNumber.externalId,
       fileBuffer: uploadFile.buffer,
-      mimeType: uploadFile.mimeType,
+      mimeType: correctedMimeType,
       fileName: safeFileName
     })
 
@@ -596,7 +607,7 @@ export async function messageRoutes(app: FastifyInstance) {
           content: content ?? '',
           mediaUrl: storageUpload.url,
           storageKey: storageUpload.key,
-          mimeType: uploadFile.mimeType,
+          mimeType: correctedMimeType,
           fileName: safeFileName,
           externalMediaId: mediaUploadResponse.id,
           externalMessageId,
