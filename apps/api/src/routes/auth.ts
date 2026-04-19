@@ -57,8 +57,8 @@ export async function authRoutes(app: FastifyInstance) {
 
     reply.setCookie(SESSION_COOKIE_NAME, rawToken, {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  secure: true,
+  sameSite: 'none',
   path: '/',
   maxAge: Math.floor(SESSION_TTL_MS / 1000)
 })
@@ -87,11 +87,11 @@ export async function authRoutes(app: FastifyInstance) {
 
     await revokeSessionByToken(token)
 
-    reply.clearCookie(SESSION_COOKIE_NAME, {
+   reply.clearCookie(SESSION_COOKIE_NAME, {
   path: '/',
   httpOnly: true,
-  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-  secure: process.env.NODE_ENV === 'production'
+  secure: true,
+  sameSite: 'none'
 })
 
     return { ok: true }
