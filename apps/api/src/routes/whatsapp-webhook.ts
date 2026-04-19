@@ -423,7 +423,11 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
             const mappedStatus = mapMetaStatusToPrisma(statusEvent.status)
 
             if (!externalMessageId || !mappedStatus) continue
-
+            
+            console.log('[WHATSAPP_STATUS_EVENT]', {
+  externalMessageId,
+  status: statusEvent.status
+})
             const existingMessage = await prisma.message.findFirst({
               where: {
                 provider: 'WHATSAPP_CLOUD',
@@ -620,7 +624,7 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
                 : null
 
             if (media.providerMediaId && isStorageConfigured()) {
-              
+
               try {
                 const mediaMetadata = await getWhatsAppMediaMetadata(
                   media.providerMediaId
