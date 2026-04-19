@@ -2,6 +2,7 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import cookie from '@fastify/cookie'
 import websocket from '@fastify/websocket'
+import multipart from '@fastify/multipart'
 import { authRoutes } from './routes/auth.js'
 import { healthRoutes } from './routes/health.js'
 import { conversationRoutes } from './routes/conversations.js'
@@ -21,31 +22,39 @@ export async function buildApp() {
   })
 
   await app.register(cors, {
-  origin: (origin, callback) => {
-    if (!origin) {
-      callback(null, true)
-      return
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true)
+        return
+      }
+
+      const allowedOrigins = [
+        process.env.WEB_URL,
+        process.env.CORS_ORIGIN,
+        'http://localhost:3000'
+      ].filter(Boolean)
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true)
+        return
+      }
+
+      callback(new Error('Not allowed by CORS'), false)
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    preflight: true,
+    optionsSuccessStatus: 204
+  })
+
+  await app.register(multipart, {
+    limits: {
+      files: 1,
+      fileSize: 50 * 1024 * 1024,
+      fields: 10
     }
-
-    const allowedOrigins = [
-      process.env.WEB_URL,
-      process.env.CORS_ORIGIN,
-      'http://localhost:3000'
-    ].filter(Boolean)
-
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true)
-      return
-    }
-
-    callback(new Error('Not allowed by CORS'), false)
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  preflight: true,
-  optionsSuccessStatus: 204
-})
+  })
 
   await app.register(websocket)
 
@@ -57,7 +66,8 @@ export async function buildApp() {
   await app.register(userRoutes, { prefix: '/api' })
   await app.register(presenceRoutes, { prefix: '/api' })
   await app.register(whatsappWebhookRoutes, { prefix: '/api' })
-console.log(app.printRoutes())
+
+  console.log(app.printRoutes())
 
   return app
 }

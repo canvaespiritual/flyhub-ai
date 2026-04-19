@@ -1,14 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 type SendTextMessagePayload = {
   type: 'text'
   content: string
 }
 
+type SendMediaMessagePayload = {
+  type: 'audio' | 'image' | 'document' | 'video'
+  file: File
+  content?: string
+}
+
 type Props = {
   onSend: (payload: SendTextMessagePayload) => Promise<void>
+  onSendMedia?: (payload: SendMediaMessagePayload) => Promise<void>
 }
 
 type ApiError = Error & {
@@ -17,10 +24,12 @@ type ApiError = Error & {
   status?: number
 }
 
-export function ChatComposer({ onSend }: Props) {
+export function ChatComposer({ onSend, onSendMedia }: Props) {
   const [value, setValue] = useState('')
   const [sending, setSending] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   async function handleSend() {
     const content = value.trim()
@@ -37,22 +46,62 @@ export function ChatComposer({ onSend }: Props) {
 
       setValue('')
     } catch (error) {
-      const err = error as ApiError
-
-      console.error('Erro ao enviar mensagem:', err)
-
-      if (err?.requiresTemplate || err?.code === 'WHATSAPP_WINDOW_CLOSED') {
-        setErrorMessage(
-          'Essa conversa está fora da janela de 24h. É necessário usar um template do WhatsApp.'
-        )
-      } else if (err?.message) {
-        setErrorMessage(err.message)
-      } else {
-        setErrorMessage('Não foi possível enviar a mensagem. Tente novamente.')
-      }
+      handleError(error)
     } finally {
       setSending(false)
     }
+  }
+
+  async function handleFileSelected(file: File) {
+    if (!file || sending || !onSendMedia) return
+
+    const detectedType = detectMessageType(file)
+
+    if (!detectedType) {
+      setErrorMessage('Tipo de arquivo não suportado')
+      return
+    }
+
+    try {
+      setSending(true)
+      setErrorMessage(null)
+
+      await onSendMedia({
+        type: detectedType,
+        file,
+        content: value.trim() || undefined
+      })
+
+      setValue('')
+    } catch (error) {
+      handleError(error)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  function detectMessageType(file: File): SendMediaMessagePayload['type'] | null {
+    const mime = file.type
+
+    if (mime.startsWith('image/')) return 'image'
+    if (mime.startsWith('audio/')) return 'audio'
+    if (mime.startsWith('video/')) return 'video'
+
+    return 'document'
+  }
+
+  function handleAttachClick() {
+    fileInputRef.current?.click()
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    handleFileSelected(file)
+
+    // reset input
+    e.target.value = ''
   }
 
   async function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -62,12 +111,24 @@ export function ChatComposer({ onSend }: Props) {
     }
   }
 
-  function handleAttachClick() {
-    console.log('Anexar mídia/documento: implementação futura')
+  function handleAudioClick() {
+    console.log('Gravação futura (IA ou recorder)')
   }
 
-  function handleAudioClick() {
-    console.log('Gravar áudio: implementação futura')
+  function handleError(error: unknown) {
+    const err = error as ApiError
+
+    console.error('Erro ao enviar mensagem:', err)
+
+    if (err?.requiresTemplate || err?.code === 'WHATSAPP_WINDOW_CLOSED') {
+      setErrorMessage(
+        'Essa conversa está fora da janela de 24h. É necessário usar um template do WhatsApp.'
+      )
+    } else if (err?.message) {
+      setErrorMessage(err.message)
+    } else {
+      setErrorMessage('Não foi possível enviar a mensagem. Tente novamente.')
+    }
   }
 
   return (
@@ -80,6 +141,14 @@ export function ChatComposer({ onSend }: Props) {
         )}
 
         <div className="flex items-end gap-2">
+          {/* INPUT OCULTO */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+
           {/* 📎 ANEXO */}
           <button
             type="button"
@@ -112,7 +181,7 @@ export function ChatComposer({ onSend }: Props) {
             />
           </div>
 
-          {/* 📤 ENVIAR ou 🎤 ÁUDIO */}
+          {/* 📤 ENVIAR ou 🎤 */}
           {value.trim() ? (
             <button
               type="button"
@@ -122,17 +191,11 @@ export function ChatComposer({ onSend }: Props) {
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#25d366] text-black transition hover:opacity-90 disabled:opacity-60"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M22 2L11 13"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
+                <path d="M22 2L11 13" stroke="currentColor" strokeWidth="2" />
                 <path
                   d="M22 2L15 22L11 13L2 9L22 2Z"
                   stroke="currentColor"
                   strokeWidth="2"
-                  strokeLinejoin="round"
                 />
               </svg>
             </button>
@@ -144,36 +207,19 @@ export function ChatComposer({ onSend }: Props) {
               title="Gravar áudio"
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#25d366] text-black transition hover:opacity-90 disabled:opacity-60"
             >
-              {/* 🎤 MICROFONE PROFISSIONAL */}
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <path
                   d="M12 14a3 3 0 003-3V5a3 3 0 10-6 0v6a3 3 0 003 3z"
                   stroke="currentColor"
                   strokeWidth="2"
-                  strokeLinecap="round"
                 />
                 <path
                   d="M19 11a7 7 0 01-14 0"
                   stroke="currentColor"
                   strokeWidth="2"
-                  strokeLinecap="round"
                 />
-                <line
-                  x1="12"
-                  y1="19"
-                  x2="12"
-                  y2="23"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                />
-                <line
-                  x1="8"
-                  y1="23"
-                  x2="16"
-                  y2="23"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                />
+                <line x1="12" y1="19" x2="12" y2="23" stroke="currentColor" strokeWidth="2" />
+                <line x1="8" y1="23" x2="16" y2="23" stroke="currentColor" strokeWidth="2" />
               </svg>
             </button>
           )}

@@ -24,6 +24,11 @@ type Props = {
   onUpdatePresence: (status: PresenceStatus) => Promise<void>
   onBack?: () => void
   onSendMessage: (payload: SendTextMessagePayload) => Promise<void>
+  onSendMediaMessage?: (payload: {
+  type: 'audio' | 'image' | 'document' | 'video'
+  file: File
+  content?: string
+}) => Promise<void>
   onChangeMode: (mode: ConversationMode) => Promise<void>
   onAssignConversation: (
     conversationId: string,
@@ -111,6 +116,7 @@ export function ChatWindow({
   onUpdatePresence,
   onBack,
   onSendMessage,
+  onSendMediaMessage,
   onChangeMode,
   onAssignConversation,
   assigningConversation = false,
@@ -481,7 +487,10 @@ export function ChatWindow({
       </div>
 
       {canSendManualMessage ? (
-        <ChatComposer onSend={onSendMessage} />
+        <ChatComposer 
+  onSend={onSendMessage} 
+  onSendMedia={onSendMediaMessage} 
+/>
       ) : (
         <div className="border-t border-neutral-800 bg-[#111b21] p-4 text-sm text-neutral-400">
           {selectedConversation.status === 'closed'

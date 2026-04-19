@@ -10,6 +10,7 @@ apps\api\src\lib\prisma.ts
 apps\api\src\lib\realtime.ts
 apps\api\src\lib\routing-policy.ts
 apps\api\src\lib\whatsapp.ts
+apps\api\src\lib\storage.ts
 apps\api\src\routes\auth.ts
 apps\api\src\routes\conversations.ts
 apps\api\src\routes\health.ts

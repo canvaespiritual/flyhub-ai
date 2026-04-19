@@ -13,6 +13,7 @@ import {
   getMessages,
   getLead,
   sendMessage,
+  sendMediaMessage,
   getUsers,
   getMyPresence,
   updateMyPresence,
@@ -24,6 +25,12 @@ type SendTextMessagePayload = {
   senderUserId?: string
   type: 'text'
   content: string
+}
+
+type SendMediaMessagePayload = {
+  type: 'audio' | 'image' | 'document' | 'video'
+  file: File
+  content?: string
 }
 
 type CurrentUser = {
@@ -569,11 +576,24 @@ const mobileLeadWhatsAppLink = mobileLeadPhone
       setErrorMessage(error instanceof Error ? error.message : 'Erro ao enviar mensagem')
     }
   }
-
-  async function handleChangeMode(mode: ConversationMode) {
+  async function handleSendMediaMessage(payload: SendMediaMessagePayload) {
     if (!selectedConversationId) return
 
     try {
+      setErrorMessage(null)
+
+      const newMessage = await sendMediaMessage(selectedConversationId, payload)
+      upsertMessage(newMessage)
+      await loadConversations()
+    } catch (error) {
+      console.error('Erro ao enviar mídia:', error)
+      setErrorMessage(error instanceof Error ? error.message : 'Erro ao enviar mídia')
+    }
+  }
+  async function handleChangeMode(mode: ConversationMode) {
+    if (!selectedConversationId) return
+
+    try { 
       setChangingMode(true)
       setErrorMessage(null)
 
@@ -762,6 +782,7 @@ const mobileLeadWhatsAppLink = mobileLeadPhone
           updatingPresence={updatingPresence}
           onUpdatePresence={handleUpdatePresence}
           onSendMessage={handleSendMessage}
+          onSendMediaMessage={handleSendMediaMessage}
           onChangeMode={handleChangeMode}
           onAssignConversation={handleAssignConversation}
           assigningConversation={assigningConversationId === selectedConversation.id}
@@ -819,6 +840,7 @@ const mobileLeadWhatsAppLink = mobileLeadPhone
       onUpdatePresence={handleUpdatePresence}
       onBack={handleBack}
       onSendMessage={handleSendMessage}
+      onSendMediaMessage={handleSendMediaMessage}
       onChangeMode={handleChangeMode}
       onAssignConversation={handleAssignConversation}
       assigningConversation={assigningConversationId === selectedConversation.id}

@@ -8,7 +8,13 @@ import type {
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
 
 export type SendMessagePayload = {
-  type: 'text' | 'audio' | 'image' | 'document'
+  type: 'text' | 'audio' | 'image' | 'document' | 'video'
+  content?: string
+}
+
+export type SendMediaMessagePayload = {
+  type: 'audio' | 'image' | 'document' | 'video'
+  file: File
   content?: string
 }
 
@@ -52,28 +58,48 @@ async function parseApiError(res: Response, fallbackMessage: string): Promise<Ap
       : fallbackMessage
   ) as ApiError
 
+  if (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'code' in payload &&
+    typeof payload.code === 'string'
+  ) {
+    error.code = payload.code
+  }
+
+  if (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'requiresTemplate' in payload &&
+    typeof payload.requiresTemplate === 'boolean'
+  ) {
+    error.requiresTemplate = payload.requiresTemplate
+  }
+
   error.status = res.status
   return error
 }
 
 async function apiFetch(url: string, options?: RequestInit) {
   const headers = new Headers(options?.headers)
+  const isFormData = typeof FormData !== 'undefined' && options?.body instanceof FormData
 
-  if (options?.body && !headers.has('Content-Type')) {
+  if (options?.body && !isFormData && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
 
   console.log('apiFetch =>', {
-  url,
-  method: options?.method ?? 'GET',
-  body: options?.body
-})
+    url,
+    method: options?.method ?? 'GET',
+    body: options?.body,
+    isFormData
+  })
 
-return fetch(url, {
-  ...options,
-  credentials: 'include',
-  headers
-})
+  return fetch(url, {
+    ...options,
+    credentials: 'include',
+    headers
+  })
 }
 
 export async function login(email: string, password: string) {
@@ -203,6 +229,33 @@ export async function sendMessage(
 
   return res.json()
 }
+
+export async function sendMediaMessage(
+  conversationId: string,
+  payload: SendMediaMessagePayload
+): Promise<Message> {
+  const formData = new FormData()
+
+  formData.append('conversationId', conversationId)
+  formData.append('type', payload.type)
+  formData.append('file', payload.file)
+
+  if (payload.content?.trim()) {
+    formData.append('content', payload.content.trim())
+  }
+
+  const res = await apiFetch(`${API_BASE_URL}/messages`, {
+    method: 'POST',
+    body: formData
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao enviar mídia')
+  }
+
+  return res.json()
+}
+
 export type User = {
   id: string
   name: string
@@ -211,8 +264,9 @@ export type User = {
   tenantId: string
   isActive: boolean
   presenceStatus: 'available' | 'paused'
-   eligibleForAssignment: boolean
+  eligibleForAssignment: boolean
 }
+
 export type PresenceStatus = 'available' | 'paused'
 
 export type PresenceUser = {
@@ -224,6 +278,7 @@ export type PresenceUser = {
   isActive: boolean
   presenceStatus: PresenceStatus
 }
+
 export async function getUsers(): Promise<User[]> {
   const res = await apiFetch(`${API_BASE_URL}/users`, {
     cache: 'no-store'
