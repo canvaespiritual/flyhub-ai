@@ -1,13 +1,38 @@
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 
+function normalizeBaseUrl(url: string) {
+  if (!url) return url
+
+  let normalized = url.trim()
+
+  // Se começar com // → adiciona https:
+  if (normalized.startsWith('//')) {
+    normalized = `https:${normalized}`
+  }
+
+  // Se não tiver http/https → força https
+  if (!/^https?:\/\//i.test(normalized)) {
+    normalized = `https://${normalized}`
+  }
+
+  // remove barra final
+  normalized = normalized.replace(/\/$/, '')
+
+  return normalized
+}
+
 function getStorageConfig() {
   const bucket = process.env.STORAGE_BUCKET
   const endpoint = process.env.STORAGE_ENDPOINT
   const region = process.env.STORAGE_REGION || 'us-east-1'
   const accessKeyId = process.env.STORAGE_ACCESS_KEY_ID
   const secretAccessKey = process.env.STORAGE_SECRET_ACCESS_KEY
-  const publicBaseUrl = process.env.STORAGE_PUBLIC_BASE_URL
+  const publicBaseUrlRaw = process.env.STORAGE_PUBLIC_BASE_URL
   const forcePathStyle = process.env.STORAGE_FORCE_PATH_STYLE === 'true'
+
+  const publicBaseUrl = publicBaseUrlRaw
+    ? normalizeBaseUrl(publicBaseUrlRaw)
+    : undefined
 
   const enabled = Boolean(
     bucket &&
@@ -73,8 +98,15 @@ export async function uploadBufferToStorage(params: {
     })
   )
 
+  const url = `${config.publicBaseUrl}/${key}`
+
+  console.log('[STORAGE_UPLOAD_DONE]', {
+    key,
+    url
+  })
+
   return {
     key,
-    url: `${config.publicBaseUrl.replace(/\/$/, '')}/${key}`
+    url
   }
 }
