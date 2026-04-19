@@ -32,8 +32,6 @@ function getSupportedAudioMimeType() {
   }
 
   const candidates = [
-    'audio/webm;codecs=opus',
-    'audio/webm',
     'audio/ogg;codecs=opus',
     'audio/ogg',
     'audio/mp4'
@@ -49,9 +47,9 @@ function getSupportedAudioMimeType() {
 }
 
 function getExtensionFromMimeType(mimeType: string) {
-  if (mimeType.includes('ogg')) return 'ogg'
-  if (mimeType.includes('mp4')) return 'm4a'
-  return 'webm'
+  if (mimeType.includes('ogg') || mimeType.includes('opus')) return 'ogg'
+  if (mimeType.includes('mp4') || mimeType.includes('aac')) return 'm4a'
+  return 'bin'
 }
 
 export function ChatComposer({ onSend, onSendMedia }: Props) {
@@ -77,6 +75,7 @@ export function ChatComposer({ onSend, onSendMedia }: Props) {
   useEffect(() => {
     return () => {
       cleanupRecorder()
+
       if (recordedAudioUrl) {
         URL.revokeObjectURL(recordedAudioUrl)
       }
@@ -215,6 +214,13 @@ export function ChatComposer({ onSend, onSendMedia }: Props) {
       return
     }
 
+    if (!supportedAudioMimeType) {
+      setErrorMessage(
+        'Este navegador não oferece um formato de gravação compatível com o WhatsApp. Teste outro navegador ou dispositivo.'
+      )
+      return
+    }
+
     if (sending) return
 
     try {
@@ -236,13 +242,11 @@ export function ChatComposer({ onSend, onSendMedia }: Props) {
       mediaStreamRef.current = stream
       recordingChunksRef.current = []
 
-      const mimeType = supportedAudioMimeType || undefined
-      const recorder = mimeType
-        ? new MediaRecorder(stream, { mimeType })
-        : new MediaRecorder(stream)
+      const mimeType = supportedAudioMimeType
+      const recorder = new MediaRecorder(stream, { mimeType })
 
       mediaRecorderRef.current = recorder
-      setRecordedAudioMimeType(recorder.mimeType || mimeType || 'audio/webm')
+      setRecordedAudioMimeType(recorder.mimeType || mimeType || '')
       setRecorderState('recording')
 
       recorder.ondataavailable = (event) => {
@@ -252,7 +256,8 @@ export function ChatComposer({ onSend, onSendMedia }: Props) {
       }
 
       recorder.onstop = () => {
-        const finalMimeType = recorder.mimeType || recordedAudioMimeType || 'audio/webm'
+        const finalMimeType = recorder.mimeType || mimeType || recordedAudioMimeType || ''
+
         const blob = new Blob(recordingChunksRef.current, {
           type: finalMimeType
         })
@@ -314,7 +319,15 @@ export function ChatComposer({ onSend, onSendMedia }: Props) {
       setSending(true)
       setErrorMessage(null)
 
-      const mimeType = recordedAudioMimeType || recordedAudioBlob.type || 'audio/webm'
+      const mimeType = recordedAudioMimeType || recordedAudioBlob.type || ''
+
+      if (!mimeType || mimeType.includes('webm')) {
+        setErrorMessage(
+          'Este navegador gravou o áudio em um formato que o WhatsApp não aceita. Teste outro navegador ou dispositivo.'
+        )
+        return
+      }
+
       const extension = getExtensionFromMimeType(mimeType)
       const file = new File(
         [recordedAudioBlob],
@@ -390,7 +403,7 @@ export function ChatComposer({ onSend, onSendMedia }: Props) {
         {recorderState === 'recording' && (
           <div className="flex items-center justify-between rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-300">
             <div className="flex items-center gap-2">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-400 animate-pulse" />
+              <span className="inline-block h-2.5 w-2.5 rounded-full animate-pulse bg-red-400" />
               <span>Gravando áudio… {formatRecordingTime(recordingSeconds)}</span>
             </div>
 
