@@ -29,6 +29,7 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@types/fluent-ffmpeg": "^2.1.28",
     "@types/node": "^24.7.2",
     "prisma": "^6.19.3",
     "tsx": "^4.20.6",
