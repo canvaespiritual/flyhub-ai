@@ -332,3 +332,39 @@ export async function logout() {
 
   return res.json()
 }
+export async function getCampaigns() {
+  const res = await apiFetch(`${API_BASE_URL}/campaigns`, {
+    cache: 'no-store'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao buscar campanhas')
+  }
+
+  return res.json()
+}
+
+export async function getCampaignOptions() {
+  const res = await apiFetch(`${API_BASE_URL}/campaigns/options`, {
+    cache: 'no-store'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao buscar opções')
+  }
+
+  return res.json()
+}
+
+export async function createCampaign(payload: any) {
+  const res = await apiFetch(`${API_BASE_URL}/campaigns`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao criar campanha')
+  }
+
+  return res.json()
+}

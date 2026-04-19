@@ -249,6 +249,8 @@ function serializeConversationUpdate(conversation: {
   closedAt?: Date | null
   subject?: string | null
   metaThreadId?: string | null
+  campaignId?: string | null
+  managerId?: string | null
   assignedUser: {
     id: string
     name: string
@@ -273,6 +275,8 @@ function serializeConversationUpdate(conversation: {
     closedAt: conversation.closedAt?.toISOString(),
     subject: conversation.subject ?? undefined,
     metaThreadId: conversation.metaThreadId ?? undefined,
+    campaignId: conversation.campaignId ?? undefined,
+    managerId: conversation.managerId ?? undefined,
     assignedUser: serializeAssignedUser(conversation.assignedUser),
     phoneNumber: serializePhoneNumber(conversation.phoneNumber)
   }
@@ -334,6 +338,8 @@ export async function conversationRoutes(app: FastifyInstance) {
         priority: mapConversationPriority(conversation.priority),
         subject: conversation.subject ?? undefined,
         metaThreadId: conversation.metaThreadId ?? undefined,
+        campaignId: conversation.campaignId ?? undefined,
+        managerId: conversation.managerId ?? undefined,
         messages: [],
         lastMessage: lastMessage ? serializeMessage(lastMessage) : undefined,
         unreadCount: 0,

@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { prisma } from '../lib/prisma.js'
 import { publish } from '../lib/realtime.js'
 import { autoAssignConversation } from '../lib/auto-assignment.js'
+import { resolveCampaignFromInbound } from '../lib/campaign-routing.js'
 import {
   markWhatsAppMessageAsRead,
   getWhatsAppMediaMetadata,
@@ -34,6 +35,19 @@ type WhatsAppWebhookPayload = {
           id?: string
           from?: string
           timestamp?: string
+          referral?: {
+            source_url?: string
+            source_type?: string
+            source_id?: string
+            headline?: string
+            body?: string
+            media_type?: string
+            image_url?: string
+            video_url?: string
+            thumbnail_url?: string
+            ctwa_clid?: string
+            ref?: string
+          }
           type?: string
           text?: {
             body?: string
@@ -494,11 +508,22 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
             const inboundProfileName = value.contacts?.[0]?.profile?.name?.trim()
             const inboundText = inbound.text?.body?.trim() ?? ''
             const media = getInboundMediaData(inbound)
-
             if (!inboundExternalId || !inboundFrom) {
               continue
             }
 
+           const referralSourceId = inbound.referral?.source_id?.trim() || null
+            const referralRef = inbound.referral?.ref?.trim() || null
+
+            const resolvedCampaign = await resolveCampaignFromInbound({
+              tenantId,
+              phoneNumberId: phoneNumber.id,
+              referralSourceId,
+              referralRef,
+              inboundText
+            })
+
+            
             const existingMessage = await prisma.message.findFirst({
               where: {
                 provider: 'WHATSAPP_CLOUD',
@@ -567,11 +592,13 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
               })
 
               if (!conversation) {
-                conversation = await tx.conversation.create({
+                  conversation = await tx.conversation.create({
                   data: {
                     tenantId,
                     contactId: contact.id,
                     phoneNumberId: phoneNumber.id,
+                    campaignId: resolvedCampaign?.id ?? null,
+                    managerId: resolvedCampaign?.managerId ?? null,
                     channel: 'WHATSAPP',
                     mode: 'MANUAL',
                     status: 'OPEN',
@@ -590,7 +617,7 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
                   where: {
                     id: conversation.id
                   },
-                  data: {
+                    data: {
                     status:
                       conversation.status === 'CLOSED'
                         ? 'OPEN'
@@ -599,7 +626,9 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
                       ? conversation.waitingSince
                       : inboundAt,
                     lastMessageAt: inboundAt,
-                    lastInboundAt: inboundAt
+                    lastInboundAt: inboundAt,
+                    campaignId: conversation.campaignId ?? resolvedCampaign?.id ?? null,
+                    managerId: conversation.managerId ?? resolvedCampaign?.managerId ?? null
                   },
                   include: {
                     assignedUser: true,

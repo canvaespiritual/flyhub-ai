@@ -35,10 +35,22 @@ export async function autoAssignConversation(input: AutoAssignInput) {
     }
   }
 
-  const users = await prisma.user.findMany({
+    const users = await prisma.user.findMany({
     where: {
       tenantId,
-      isActive: true
+      isActive: true,
+      ...(conversation.managerId
+        ? {
+            OR: [
+              {
+                id: conversation.managerId
+              },
+              {
+                managerId: conversation.managerId
+              }
+            ]
+          }
+        : {})
     },
     select: {
       id: true,

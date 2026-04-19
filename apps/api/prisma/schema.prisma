@@ -17,8 +17,10 @@ model Tenant {
   contacts      Contact[]
   conversations Conversation[]
   phoneNumbers  PhoneNumber[]
+  campaigns     Campaign[]
   webhookEvents WebhookEvent[]
   sessions Session[]
+  
 }
 
 model PhoneNumber {
@@ -35,6 +37,7 @@ model PhoneNumber {
 
   tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   conversations  Conversation[]
+  campaigns      Campaign[]
   webhookEvents  WebhookEvent[]
 
   @@index([tenantId, isActive])
@@ -46,6 +49,7 @@ model User {
   name      String
   email     String   @unique
   tenantId  String
+  managerId String?
   role      UserRole @default(AGENT)
   isActive  Boolean  @default(true)
   presenceStatus PresenceStatus @default(AVAILABLE)
@@ -59,9 +63,13 @@ model User {
   updatedAt DateTime @updatedAt
 
   tenant                Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  manager               User?          @relation("UserManager", fields: [managerId], references: [id], onDelete: SetNull)
+  teamMembers           User[]         @relation("UserManager")
   assignments           Assignment[]
   messages              Message[]
   assignedConversations Conversation[] @relation("ConversationAssignedUser")
+  managedConversations  Conversation[] @relation("ConversationManager")
+  managedCampaigns      Campaign[]     @relation("CampaignManager")
   assignedByEvents      Assignment[]   @relation("AssignmentAssignedByUser")
 
   // 🔐 SESSÕES
@@ -69,6 +77,7 @@ model User {
 
   @@index([tenantId, role, isActive])
   @@index([tenantId, isActive])
+  @@index([managerId])
 }
 
 model Session {
@@ -114,11 +123,40 @@ model Contact {
   @@index([flyImobLeadId])
 }
 
+model Campaign {
+  id              String   @id @default(cuid())
+  tenantId        String
+  phoneNumberId   String
+  managerId       String?
+  name            String
+  metaAdId        String?
+  ref             String?
+  fallbackText    String?
+  initialPrompt   String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  phoneNumber     PhoneNumber @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
+  manager         User?       @relation("CampaignManager", fields: [managerId], references: [id], onDelete: SetNull)
+  conversations   Conversation[]
+
+  @@index([tenantId, isActive])
+  @@index([phoneNumberId, isActive])
+  @@index([managerId, isActive])
+  @@index([metaAdId])
+  @@index([ref])
+  @@index([tenantId, metaAdId])
+}
+
 model Conversation {
   id              String             @id @default(cuid())
   tenantId        String
   contactId       String
   phoneNumberId   String
+  campaignId      String?
+  managerId       String?
   assignedUserId  String?
   status          ConversationStatus @default(OPEN)
   channel         Channel            @default(WHATSAPP)
@@ -136,9 +174,11 @@ model Conversation {
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 
-  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+   tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   contact      Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
   phoneNumber  PhoneNumber @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
+  campaign     Campaign?   @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  manager      User?       @relation("ConversationManager", fields: [managerId], references: [id], onDelete: SetNull)
   assignedUser User?       @relation("ConversationAssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
 
   messages    Message[]
@@ -154,6 +194,9 @@ model Conversation {
   @@index([phoneNumberId, updatedAt])
   @@index([contactId, updatedAt])
   @@index([tenantId, contactId, phoneNumberId, status])
+  @@index([campaignId])
+  @@index([managerId, updatedAt])
+  @@index([tenantId, managerId, status, updatedAt])
   @@index([metaThreadId])
 }
 
