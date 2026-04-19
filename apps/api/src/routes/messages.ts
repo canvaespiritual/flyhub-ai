@@ -508,23 +508,36 @@ export async function messageRoutes(app: FastifyInstance) {
         correctedMimeType = 'audio/mp4'
       }
     }
-        console.log('[MEDIA_MESSAGE_RECEIVED]', {
+        let correctedFileName = uploadFile.fileName || `${mediaType}_${Date.now()}`
+
+    if (mediaType === 'audio') {
+      if (correctedMimeType === 'audio/ogg') {
+        correctedFileName = correctedFileName.replace(/\.[^.]+$/i, '') + '.ogg'
+      } else if (correctedMimeType === 'audio/mpeg') {
+        correctedFileName = correctedFileName.replace(/\.[^.]+$/i, '') + '.mp3'
+      } else if (correctedMimeType === 'audio/mp4') {
+        correctedFileName = correctedFileName.replace(/\.[^.]+$/i, '') + '.m4a'
+      }
+    }
+           console.log('[MEDIA_MESSAGE_RECEIVED]', {
       conversationId,
       tenantId,
       mediaType,
-      fileName: uploadFile.fileName,
-      mimeType: uploadFile.mimeType,
+      fileName: correctedFileName,
+      originalFileName: uploadFile.fileName,
+      mimeType: correctedMimeType,
+      originalMimeType: uploadFile.mimeType,
       size: uploadFile.size,
       content
     })
 
-    if (!validateMimeTypeForMessageType(mediaType, uploadFile.mimeType)) {
+        if (!validateMimeTypeForMessageType(mediaType, correctedMimeType)) {
       return reply.status(400).send({
-        message: `Invalid mime type for ${mediaType}: ${uploadFile.mimeType}`
+        message: `Invalid mime type for ${mediaType}: ${correctedMimeType}`
       })
     }
 
-    const detectedType = detectMessageTypeFromMimeType(uploadFile.mimeType)
+        const detectedType = detectMessageTypeFromMimeType(correctedMimeType)
 
     if (!detectedType || detectedType !== mediaType) {
       return reply.status(400).send({
@@ -540,13 +553,13 @@ export async function messageRoutes(app: FastifyInstance) {
       })
     }
 
-    const safeFileName = sanitizeFileName(uploadFile.fileName || `${mediaType}_${Date.now()}`)
+        const safeFileName = sanitizeFileName(correctedFileName)
     const storageKey = `${getStoragePrefixByType(mediaType)}/${tenantId}/${conversationId}/${Date.now()}-${safeFileName}`
 
-    const storageUpload = await uploadBufferToStorage({
+        const storageUpload = await uploadBufferToStorage({
       key: storageKey,
       body: uploadFile.buffer,
-      contentType: uploadFile.mimeType
+      contentType: correctedMimeType
     })
 
         console.log('[MEDIA_STORAGE_UPLOAD_DONE]', {
