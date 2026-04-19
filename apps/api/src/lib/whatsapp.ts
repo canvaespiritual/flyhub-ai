@@ -104,9 +104,17 @@ export async function uploadWhatsAppMedia(params: {
     headers: getWhatsAppUploadAuthHeaders(),
     body: formData
   })
+    
 
   const data = await response.json()
-
+console.log('[WHATSAPP_MEDIA_UPLOAD]', {
+    phoneNumberId,
+    fileName,
+    mimeType,
+    ok: response.ok,
+    status: response.status,
+    data
+  })
   if (!response.ok) {
     throw new Error(
       `WhatsApp media upload error: ${JSON.stringify(data)}`
@@ -169,14 +177,35 @@ export async function sendWhatsAppMediaMessage(params: {
     return basePayload
   }
 
-  async function send(toNumber: string) {
+   async function send(toNumber: string) {
+    const payload = buildMediaPayload(toNumber)
+
+    console.log('[WHATSAPP_MEDIA_SEND_REQUEST]', {
+      phoneNumberId,
+      to: toNumber,
+      type,
+      mediaId,
+      caption,
+      fileName,
+      payload
+    })
+
     const response = await fetch(url, {
       method: 'POST',
       headers: getWhatsAppAuthHeaders('json'),
-      body: JSON.stringify(buildMediaPayload(toNumber))
+      body: JSON.stringify(payload)
     })
 
     const data = await response.json()
+
+    console.log('[WHATSAPP_MEDIA_SEND_RESPONSE]', {
+      phoneNumberId,
+      to: toNumber,
+      type,
+      ok: response.ok,
+      status: response.status,
+      data
+    })
 
     return { response, data }
   }

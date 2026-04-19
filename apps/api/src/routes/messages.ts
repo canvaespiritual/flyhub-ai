@@ -497,6 +497,15 @@ export async function messageRoutes(app: FastifyInstance) {
         message: 'File is required for media messages'
       })
     }
+        console.log('[MEDIA_MESSAGE_RECEIVED]', {
+      conversationId,
+      tenantId,
+      mediaType,
+      fileName: uploadFile.fileName,
+      mimeType: uploadFile.mimeType,
+      size: uploadFile.size,
+      content
+    })
 
     if (!validateMimeTypeForMessageType(mediaType, uploadFile.mimeType)) {
       return reply.status(400).send({
@@ -529,11 +538,22 @@ export async function messageRoutes(app: FastifyInstance) {
       contentType: uploadFile.mimeType
     })
 
+        console.log('[MEDIA_STORAGE_UPLOAD_DONE]', {
+      conversationId,
+      storageKey: storageUpload.key,
+      mediaUrl: storageUpload.url
+    })
+
     const mediaUploadResponse = await uploadWhatsAppMedia({
       phoneNumberId: conversation.phoneNumber.externalId,
       fileBuffer: uploadFile.buffer,
       mimeType: uploadFile.mimeType,
       fileName: safeFileName
+    })
+
+        console.log('[MEDIA_META_UPLOAD_DONE]', {
+      conversationId,
+      externalMediaId: mediaUploadResponse.id
     })
 
     const waResponse = await sendWhatsAppMediaMessage({
@@ -547,7 +567,22 @@ export async function messageRoutes(app: FastifyInstance) {
           : undefined,
       fileName: mediaType === 'document' ? safeFileName : undefined
     })
+    console.log('[MEDIA_META_SEND_DONE]', {
+      conversationId,
+      waResponse
+    })
+        const externalMessageId = waResponse.messages?.[0]?.id ?? null
 
+    if (!externalMessageId) {
+      console.error('[MEDIA_META_SEND_NO_MESSAGE_ID]', {
+        conversationId,
+        waResponse
+      })
+
+      return reply.status(502).send({
+        message: 'WhatsApp did not return a message id for this media send'
+      })
+    }
     const message = await prisma.$transaction(async (tx) => {
       const createdMessage = await tx.message.create({
         data: {
@@ -564,7 +599,7 @@ export async function messageRoutes(app: FastifyInstance) {
           mimeType: uploadFile.mimeType,
           fileName: safeFileName,
           externalMediaId: mediaUploadResponse.id,
-          externalMessageId: waResponse.messages?.[0]?.id ?? null,
+          externalMessageId,
           externalStatus: 'sent',
           sentAt: now
         }
