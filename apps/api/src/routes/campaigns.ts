@@ -7,23 +7,90 @@ const campaignParamsSchema = z.object({
   id: z.string().min(1)
 })
 
-const createCampaignSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  phoneNumberId: z.string().min(1),
-  managerId: z.string().min(1).nullable().optional(),
-  metaAdId: z.string().trim().min(1).max(100).nullable().optional(),
-  ref: z.string().trim().min(1).max(100).nullable().optional(),
-  fallbackText: z.string().trim().min(1).max(300).nullable().optional(),
-  initialPrompt: z.string().trim().min(1).max(5000).nullable().optional(),
-  isActive: z.boolean().optional()
+const campaignInitialStepInputSchema = z.object({
+  order: z.coerce.number().int().min(1).max(999),
+  type: z.enum(['text', 'audio', 'image', 'link']),
+  content: z.string().trim().min(1).max(5000),
+  delaySeconds: z.coerce.number().int().min(0).max(86400).default(0),
+  isActive: z.boolean().optional().default(true)
 })
 
-const updateCampaignSchema = createCampaignSchema.partial()
+function hasDuplicateOrders(steps?: Array<{ order: number }>) {
+  if (!steps?.length) return false
+  const orders = steps.map((step) => step.order)
+  return new Set(orders).size !== orders.length
+}
+
+const createCampaignSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    phoneNumberId: z.string().min(1),
+    managerId: z.string().min(1).nullable().optional(),
+    metaAdId: z.string().trim().min(1).max(100).nullable().optional(),
+    ref: z.string().trim().min(1).max(100).nullable().optional(),
+    fallbackText: z.string().trim().min(1).max(300).nullable().optional(),
+    initialPrompt: z.string().trim().min(1).max(5000).nullable().optional(),
+    isActive: z.boolean().optional(),
+    initialSteps: z.array(campaignInitialStepInputSchema).max(50).optional()
+  })
+  .superRefine((data, ctx) => {
+    if (hasDuplicateOrders(data.initialSteps)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Os steps não podem ter ordens repetidas',
+        path: ['initialSteps']
+      })
+    }
+  })
+
+const updateCampaignSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    phoneNumberId: z.string().min(1).optional(),
+    managerId: z.string().min(1).nullable().optional(),
+    metaAdId: z.string().trim().min(1).max(100).nullable().optional(),
+    ref: z.string().trim().min(1).max(100).nullable().optional(),
+    fallbackText: z.string().trim().min(1).max(300).nullable().optional(),
+    initialPrompt: z.string().trim().min(1).max(5000).nullable().optional(),
+    isActive: z.boolean().optional(),
+    initialSteps: z.array(campaignInitialStepInputSchema).max(50).optional()
+  })
+  .superRefine((data, ctx) => {
+    if (hasDuplicateOrders(data.initialSteps)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Os steps não podem ter ordens repetidas',
+        path: ['initialSteps']
+      })
+    }
+  })
 
 function normalizeNullableString(value?: string | null) {
   if (value == null) return null
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : null
+}
+
+function normalizeInitialSteps(
+  steps?: Array<{
+    order: number
+    type: 'text' | 'audio' | 'image' | 'link'
+    content: string
+    delaySeconds?: number
+    isActive?: boolean
+  }>
+) {
+  if (!steps) return undefined
+
+  return [...steps]
+    .sort((a, b) => a.order - b.order)
+    .map((step) => ({
+      order: step.order,
+      type: step.type.toUpperCase() as 'TEXT' | 'AUDIO' | 'IMAGE' | 'LINK',
+      content: step.content.trim(),
+      delaySeconds: step.delaySeconds ?? 0,
+      isActive: step.isActive ?? true
+    }))
 }
 
 function serializeCampaign(campaign: {
@@ -50,6 +117,16 @@ function serializeCampaign(campaign: {
     email: string
     role: 'MASTER' | 'ADMIN' | 'MANAGER' | 'AGENT'
   } | null
+  initialSteps?: Array<{
+    id: string
+    order: number
+    type: 'TEXT' | 'AUDIO' | 'IMAGE' | 'LINK'
+    content: string
+    delaySeconds: number
+    isActive: boolean
+    createdAt: Date
+    updatedAt: Date
+  }>
 }) {
   return {
     id: campaign.id,
@@ -78,7 +155,18 @@ function serializeCampaign(campaign: {
           email: campaign.manager.email,
           role: campaign.manager.role.toLowerCase()
         }
-      : undefined
+      : undefined,
+    initialSteps:
+      campaign.initialSteps?.map((step) => ({
+        id: step.id,
+        order: step.order,
+        type: step.type.toLowerCase(),
+        content: step.content,
+        delaySeconds: step.delaySeconds,
+        isActive: step.isActive,
+        createdAt: step.createdAt.toISOString(),
+        updatedAt: step.updatedAt.toISOString()
+      })) ?? []
   }
 }
 
@@ -107,10 +195,7 @@ export async function campaignRoutes(app: FastifyInstance) {
         tenantId,
         ...(currentUserRole === 'MANAGER'
           ? {
-              OR: [
-                { managerId: currentUserId },
-                { managerId: null }
-              ]
+              OR: [{ managerId: currentUserId }, { managerId: null }]
             }
           : {})
       },
@@ -128,6 +213,11 @@ export async function campaignRoutes(app: FastifyInstance) {
             name: true,
             email: true,
             role: true
+          }
+        },
+        initialSteps: {
+          orderBy: {
+            order: 'asc'
           }
         }
       },
@@ -207,7 +297,11 @@ export async function campaignRoutes(app: FastifyInstance) {
     const tenantId = session.user.tenantId
     const currentUserId = session.user.id
 
-    if (currentUserRole !== 'MASTER' && currentUserRole !== 'ADMIN' && currentUserRole !== 'MANAGER') {
+    if (
+      currentUserRole !== 'MASTER' &&
+      currentUserRole !== 'ADMIN' &&
+      currentUserRole !== 'MANAGER'
+    ) {
       return reply.status(403).send({
         message: 'Sem permissão para criar campanha'
       })
@@ -230,7 +324,8 @@ export async function campaignRoutes(app: FastifyInstance) {
       ref,
       fallbackText,
       initialPrompt,
-      isActive
+      isActive,
+      initialSteps
     } = parsedBody.data
 
     const phoneNumber = await prisma.phoneNumber.findFirst({
@@ -317,6 +412,8 @@ export async function campaignRoutes(app: FastifyInstance) {
       }
     }
 
+    const normalizedInitialSteps = normalizeInitialSteps(initialSteps)
+
     const campaign = await prisma.campaign.create({
       data: {
         tenantId,
@@ -327,7 +424,14 @@ export async function campaignRoutes(app: FastifyInstance) {
         ref: normalizedRef,
         fallbackText: normalizeNullableString(fallbackText),
         initialPrompt: normalizeNullableString(initialPrompt),
-        isActive: isActive ?? true
+        isActive: isActive ?? true,
+        ...(normalizedInitialSteps
+          ? {
+              initialSteps: {
+                create: normalizedInitialSteps
+              }
+            }
+          : {})
       },
       include: {
         phoneNumber: {
@@ -343,6 +447,11 @@ export async function campaignRoutes(app: FastifyInstance) {
             name: true,
             email: true,
             role: true
+          }
+        },
+        initialSteps: {
+          orderBy: {
+            order: 'asc'
           }
         }
       }
@@ -364,7 +473,11 @@ export async function campaignRoutes(app: FastifyInstance) {
     const tenantId = session.user.tenantId
     const currentUserId = session.user.id
 
-    if (currentUserRole !== 'MASTER' && currentUserRole !== 'ADMIN' && currentUserRole !== 'MANAGER') {
+    if (
+      currentUserRole !== 'MASTER' &&
+      currentUserRole !== 'ADMIN' &&
+      currentUserRole !== 'MANAGER'
+    ) {
       return reply.status(403).send({
         message: 'Sem permissão para editar campanha'
       })
@@ -405,7 +518,11 @@ export async function campaignRoutes(app: FastifyInstance) {
       })
     }
 
-    if (currentUserRole === 'MANAGER' && existingCampaign.managerId && existingCampaign.managerId !== currentUserId) {
+    if (
+      currentUserRole === 'MANAGER' &&
+      existingCampaign.managerId &&
+      existingCampaign.managerId !== currentUserId
+    ) {
       return reply.status(403).send({
         message: 'Sem permissão para editar campanha de outro manager'
       })
@@ -458,7 +575,9 @@ export async function campaignRoutes(app: FastifyInstance) {
     }
 
     const normalizedMetaAdId =
-      data.metaAdId === undefined ? undefined : normalizeNullableString(data.metaAdId)
+      data.metaAdId === undefined
+        ? undefined
+        : normalizeNullableString(data.metaAdId)
 
     const normalizedRef =
       data.ref === undefined ? undefined : normalizeNullableString(data.ref)
@@ -505,41 +624,84 @@ export async function campaignRoutes(app: FastifyInstance) {
       }
     }
 
-    const updatedCampaign = await prisma.campaign.update({
-      where: {
-        id
-      },
-      data: {
-        ...(data.name !== undefined ? { name: data.name } : {}),
-        ...(data.phoneNumberId !== undefined ? { phoneNumberId: data.phoneNumberId } : {}),
-        ...(resolvedManagerId !== undefined ? { managerId: resolvedManagerId } : {}),
-        ...(normalizedMetaAdId !== undefined ? { metaAdId: normalizedMetaAdId } : {}),
-        ...(normalizedRef !== undefined ? { ref: normalizedRef } : {}),
-        ...(data.fallbackText !== undefined
-          ? { fallbackText: normalizeNullableString(data.fallbackText) }
-          : {}),
-        ...(data.initialPrompt !== undefined
-          ? { initialPrompt: normalizeNullableString(data.initialPrompt) }
-          : {}),
-        ...(data.isActive !== undefined ? { isActive: data.isActive } : {})
-      },
-      include: {
-        phoneNumber: {
-          select: {
-            id: true,
-            number: true,
-            label: true
-          }
+    const normalizedInitialSteps = normalizeInitialSteps(data.initialSteps)
+
+    const updatedCampaign = await prisma.$transaction(async (tx) => {
+      await tx.campaign.update({
+        where: {
+          id
         },
-        manager: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true
+        data: {
+          ...(data.name !== undefined ? { name: data.name } : {}),
+          ...(data.phoneNumberId !== undefined
+            ? { phoneNumberId: data.phoneNumberId }
+            : {}),
+          ...(resolvedManagerId !== undefined
+            ? { managerId: resolvedManagerId }
+            : {}),
+          ...(normalizedMetaAdId !== undefined
+            ? { metaAdId: normalizedMetaAdId }
+            : {}),
+          ...(normalizedRef !== undefined ? { ref: normalizedRef } : {}),
+          ...(data.fallbackText !== undefined
+            ? { fallbackText: normalizeNullableString(data.fallbackText) }
+            : {}),
+          ...(data.initialPrompt !== undefined
+            ? { initialPrompt: normalizeNullableString(data.initialPrompt) }
+            : {}),
+          ...(data.isActive !== undefined ? { isActive: data.isActive } : {})
+        }
+      })
+
+      if (normalizedInitialSteps !== undefined) {
+        await tx.campaignInitialStep.deleteMany({
+          where: {
+            campaignId: id
           }
+        })
+
+        if (normalizedInitialSteps.length > 0) {
+          await tx.campaignInitialStep.createMany({
+            data: normalizedInitialSteps.map((step) => ({
+              campaignId: id,
+              order: step.order,
+              type: step.type,
+              content: step.content,
+              delaySeconds: step.delaySeconds,
+              isActive: step.isActive
+            }))
+          })
         }
       }
+
+      return tx.campaign.findFirstOrThrow({
+        where: {
+          id,
+          tenantId
+        },
+        include: {
+          phoneNumber: {
+            select: {
+              id: true,
+              number: true,
+              label: true
+            }
+          },
+          manager: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true
+            }
+          },
+          initialSteps: {
+            orderBy: {
+              order: 'asc'
+            }
+          }
+        }
+      })
     })
 
     return serializeCampaign(updatedCampaign)

@@ -11,6 +11,7 @@ import {
 } from '../lib/assignment-policy.js'
 import { autoAssignConversation } from '../lib/auto-assignment.js'
 import { isUserEligibleForAssignment } from '../lib/routing-policy.js'
+import { cancelConversationAutomation } from '../lib/conversation-automation.js'
 
 const paramsSchema = z.object({
   id: z.string().min(1)
@@ -574,27 +575,60 @@ export async function conversationRoutes(app: FastifyInstance) {
         message: 'You are not allowed to change this conversation mode'
       })
     }
-    const updatedConversation = await prisma.conversation.update({
-      where: {
-        id
-      },
-      data: {
-        mode: mode === 'ai' ? 'AI' : 'MANUAL'
-      },
-      include: {
-        assignedUser: true,
-        phoneNumber: true
-      }
+    const newMode = mode === 'ai' ? 'AI' : 'MANUAL'
+
+const updatedConversation = await prisma.conversation.update({
+  where: {
+    id
+  },
+  data: {
+    mode: newMode
+  },
+  include: {
+    assignedUser: true,
+    phoneNumber: true
+  }
+})
+
+// 🔥 cancelar automação se virou manual
+if (newMode === 'MANUAL') {
+  try {
+    await cancelConversationAutomation({
+      conversationId: id,
+      reason: 'manual_override'
     })
+  } catch (error) {
+    request.log.error(
+      {
+        error,
+        conversationId: id
+      },
+      'Failed to cancel automation after manual override'
+    )
+  }
+}
 
-    const response = serializeConversationUpdate(updatedConversation)
+    let conversationForResponse = updatedConversation
 
-    publish(tenantId, {
-      type: 'conversation:mode_changed',
-      payload: response
-    })
+if (newMode === 'MANUAL') {
+  conversationForResponse = await prisma.conversation.findFirstOrThrow({
+    where: {
+      id,
+      tenantId
+    },
+    include: {
+      assignedUser: true,
+      phoneNumber: true
+    }
+  })
+} else {
+  publish(tenantId, {
+    type: 'conversation:mode_changed',
+    payload: serializeConversationUpdate(updatedConversation)
+  })
+}
 
-    return response
+return serializeConversationUpdate(conversationForResponse)
   })
 
   app.patch('/conversations/:id/assign', async (request, reply) => {

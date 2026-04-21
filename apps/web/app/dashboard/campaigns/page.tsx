@@ -2,52 +2,23 @@
 
 import { useEffect, useState } from 'react'
 import { getCampaigns, getCampaignOptions, createCampaign } from '@/lib/api'
-
-type Campaign = {
-  id: string
-  name: string
-  phoneNumberId: string
-  managerId?: string
-  metaAdId?: string
-  ref?: string
-  fallbackText?: string
-  initialPrompt?: string
-  isActive: boolean
-}
-
-type Options = {
-  phoneNumbers: {
-    id: string
-    number: string
-    label?: string
-  }[]
-  managers: {
-    id: string
-    name: string
-  }[]
-}
+import CampaignForm from './CampaignForm'
 
 export default function CampaignsPage() {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([])
-  const [options, setOptions] = useState<Options | null>(null)
+  const [campaigns, setCampaigns] = useState<any[]>([])
+  const [options, setOptions] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
-  const [form, setForm] = useState({
-    name: '',
-    phoneNumberId: '',
-    managerId: '',
-    metaAdId: '',
-    ref: '',
-    fallbackText: '',
-    initialPrompt: ''
-  })
+  const [selectedCampaign, setSelectedCampaign] = useState<any | null>(null)
 
   async function load() {
     setLoading(true)
+
     const [c, o] = await Promise.all([
       getCampaigns(),
       getCampaignOptions()
     ])
+
     setCampaigns(c)
     setOptions(o)
     setLoading(false)
@@ -57,27 +28,9 @@ export default function CampaignsPage() {
     load()
   }, [])
 
-  async function handleCreate() {
-    await createCampaign({
-      ...form,
-      managerId: form.managerId || null,
-      metaAdId: form.metaAdId || null,
-      ref: form.ref || null,
-      fallbackText: form.fallbackText || null,
-      initialPrompt: form.initialPrompt || null
-    })
-
-    setForm({
-      name: '',
-      phoneNumberId: '',
-      managerId: '',
-      metaAdId: '',
-      ref: '',
-      fallbackText: '',
-      initialPrompt: ''
-    })
-
-    await load()
+  function handleSuccess() {
+    setSelectedCampaign(null)
+    load()
   }
 
   if (loading) {
@@ -85,90 +38,55 @@ export default function CampaignsPage() {
   }
 
   return (
-    <div className="p-6 text-white space-y-6">
-      <h1 className="text-2xl font-bold">Campanhas</h1>
+    <div className="p-6 text-white grid grid-cols-2 gap-6">
+      {/* 🔹 LISTA */}
+      <div>
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold">Campanhas</h1>
 
-      {/* FORM */}
-      <div className="bg-[#111b21] p-4 rounded-xl space-y-3">
-        <input
-          placeholder="Nome"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          className="w-full p-2 bg-black rounded"
-        />
+          <button
+            onClick={() => setSelectedCampaign({})}
+            className="bg-blue-600 px-4 py-2 rounded font-semibold"
+          >
+            Nova campanha
+          </button>
+        </div>
 
-        <select
-          value={form.phoneNumberId}
-          onChange={(e) => setForm({ ...form, phoneNumberId: e.target.value })}
-          className="w-full p-2 bg-black rounded"
-        >
-          <option value="">Selecionar número</option>
-          {options?.phoneNumbers.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.label || p.number}
-            </option>
+        <div className="space-y-2">
+          {campaigns.map((c) => (
+            <div
+              key={c.id}
+              onClick={() => setSelectedCampaign(c)}
+              className="bg-[#202c33] p-3 rounded-xl cursor-pointer hover:bg-[#2a3942]"
+            >
+              <div className="font-semibold">{c.name}</div>
+
+              <div className="text-sm text-neutral-400">
+                Gatilho: {c.fallbackText || '—'}
+              </div>
+
+              <div className="text-xs text-neutral-500">
+                {c.initialSteps?.length || 0} steps
+              </div>
+            </div>
           ))}
-        </select>
-
-        <select
-          value={form.managerId}
-          onChange={(e) => setForm({ ...form, managerId: e.target.value })}
-          className="w-full p-2 bg-black rounded"
-        >
-          <option value="">Selecionar manager</option>
-          {options?.managers.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-
-        <input
-          placeholder="Meta Ad ID"
-          value={form.metaAdId}
-          onChange={(e) => setForm({ ...form, metaAdId: e.target.value })}
-          className="w-full p-2 bg-black rounded"
-        />
-
-        <input
-          placeholder="Ref (opcional)"
-          value={form.ref}
-          onChange={(e) => setForm({ ...form, ref: e.target.value })}
-          className="w-full p-2 bg-black rounded"
-        />
-
-        <input
-          placeholder="Fallback text"
-          value={form.fallbackText}
-          onChange={(e) => setForm({ ...form, fallbackText: e.target.value })}
-          className="w-full p-2 bg-black rounded"
-        />
-
-        <textarea
-          placeholder="Prompt inicial"
-          value={form.initialPrompt}
-          onChange={(e) => setForm({ ...form, initialPrompt: e.target.value })}
-          className="w-full p-2 bg-black rounded"
-        />
-
-        <button
-          onClick={handleCreate}
-          className="bg-green-500 px-4 py-2 rounded font-semibold"
-        >
-          Criar campanha
-        </button>
+        </div>
       </div>
 
-      {/* LISTA */}
-      <div className="space-y-2">
-        {campaigns.map((c) => (
-          <div key={c.id} className="bg-[#202c33] p-3 rounded-xl">
-            <div className="font-semibold">{c.name}</div>
-            <div className="text-sm text-neutral-400">
-              AdID: {c.metaAdId || '—'}
-            </div>
+      {/* 🔥 FORM / EDIÇÃO */}
+      <div>
+        {selectedCampaign ? (
+          <div className="bg-[#111b21] p-4 rounded-xl">
+            <CampaignForm
+              campaign={selectedCampaign}
+              onSuccess={handleSuccess}
+            />
           </div>
-        ))}
+        ) : (
+          <div className="text-neutral-400 mt-10">
+            Selecione uma campanha ou crie uma nova
+          </div>
+        )}
       </div>
     </div>
   )

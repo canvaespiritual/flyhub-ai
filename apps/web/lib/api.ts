@@ -368,3 +368,15 @@ export async function createCampaign(payload: any) {
 
   return res.json()
 }
+export async function updateCampaign(campaignId: string, payload: any) {
+  const res = await apiFetch(`${API_BASE_URL}/campaigns/${campaignId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao atualizar campanha')
+  }
+
+  return res.json()
+}

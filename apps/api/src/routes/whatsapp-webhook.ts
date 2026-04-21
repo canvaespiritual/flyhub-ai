@@ -12,7 +12,7 @@ import {
   isStorageConfigured,
   uploadBufferToStorage
 } from '../lib/storage.js'
-
+import { startInitialSequenceForConversation } from '../lib/conversation-automation.js'
 type WhatsAppWebhookPayload = {
   object?: string
   entry?: Array<{
@@ -572,7 +572,7 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
                   phoneRaw: inbound.from ?? inboundFrom
                 }
               })
-
+              let isNewConversation = false
               let conversation = await tx.conversation.findFirst({
                 where: {
                   tenantId,
@@ -592,6 +592,8 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
               })
 
               if (!conversation) {
+                isNewConversation = true
+
                   conversation = await tx.conversation.create({
                   data: {
                     tenantId,
@@ -600,7 +602,7 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
                     campaignId: resolvedCampaign?.id ?? null,
                     managerId: resolvedCampaign?.managerId ?? null,
                     channel: 'WHATSAPP',
-                    mode: 'MANUAL',
+                    mode: 'AI',
                     status: 'OPEN',
                     priority: 'NORMAL',
                     waitingSince: inboundAt,
@@ -638,8 +640,9 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
               }
 
               return {
-                conversation
-              }
+  conversation,
+  isNewConversation
+}
             })
 
             let uploadedMediaUrl: string | null = null
@@ -766,7 +769,21 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
               type: 'message:new',
               payload: mapRealtimeMessage(createdMessage)
             })
-
+            if (baseData.isNewConversation) {
+  try {
+    await startInitialSequenceForConversation({
+      conversationId: baseData.conversation.id
+    })
+  } catch (error) {
+    request.log.error(
+      {
+        error,
+        conversationId: baseData.conversation.id
+      },
+      'Failed to start initial conversation automation'
+    )
+  }
+}
             if (!baseData.conversation.assignedUserId) {
               try {
                 const autoAssignResult = await autoAssignConversation({
