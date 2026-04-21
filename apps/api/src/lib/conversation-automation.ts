@@ -1,11 +1,18 @@
 import { prisma } from './prisma.js'
 import {
   sendWhatsAppMediaMessage,
-  sendWhatsAppTextMessage
+  sendWhatsAppTextMessage,
+  uploadWhatsAppMedia
 } from './whatsapp.js'
 import { publish } from './realtime.js'
 
-type AutomationStepType = 'TEXT' | 'AUDIO' | 'IMAGE' | 'LINK'
+type AutomationStepType =
+  | 'TEXT'
+  | 'AUDIO'
+  | 'IMAGE'
+  | 'DOCUMENT'
+  | 'VIDEO'
+  | 'LINK'
 
 type StartInitialSequenceParams = {
   conversationId: string
@@ -156,15 +163,127 @@ function addSeconds(baseDate: Date, seconds: number) {
   return new Date(baseDate.getTime() + seconds * 1000)
 }
 
-function normalizeStepContentForSend(type: AutomationStepType, content: string) {
+function normalizeStepContentForSend(
+  type: AutomationStepType,
+  content?: string | null
+) {
+  const safeContent = content?.trim() ?? ''
+
   if (type === 'LINK') {
-    return content.trim()
+    return safeContent
   }
 
-  return content.trim()
+  return safeContent
 }
 
+function getGreeting(): string {
+  const hour = new Date().getHours()
 
+  if (hour < 12) return 'Bom dia'
+  if (hour < 18) return 'Boa tarde'
+  return 'Boa noite'
+}
+
+function sanitizeName(name?: string | null): string | null {
+  if (!name) return null
+
+  const cleaned = name
+    .trim()
+    .split(' ')[0]
+    .replace(/[^a-zA-ZÀ-ÿ]/g, '')
+
+  if (!cleaned) return null
+
+  if (cleaned.length < 2) return null
+  if (cleaned.length > 20) return null
+
+  const blacklist = [
+    'deus',
+    'jesus',
+    'cristo',
+    'filha',
+    'filho',
+    'amor',
+    'linda',
+    'gostosa',
+    'rainha'
+  ]
+
+  if (blacklist.includes(cleaned.toLowerCase())) return null
+
+  return cleaned
+}
+
+function buildNameSuffix(name?: string | null): string {
+  const validName = sanitizeName(name)
+  return validName ? `, ${validName}` : ''
+}
+function applyPlaceholders(
+  text: string,
+  contactName?: string | null
+): string {
+  const greeting = getGreeting()
+  const nameSuffix = buildNameSuffix(contactName)
+
+  return text
+    .replace(/\{greeting\}/gi, greeting)
+    .replace(/\{nameSuffix\}/gi, nameSuffix)
+}
+function getAutomationMessageType(
+  stepType: AutomationStepType
+): 'TEXT' | 'AUDIO' | 'IMAGE' | 'DOCUMENT' | 'VIDEO' {
+  switch (stepType) {
+    case 'AUDIO':
+      return 'AUDIO'
+    case 'IMAGE':
+      return 'IMAGE'
+    case 'DOCUMENT':
+      return 'DOCUMENT'
+    case 'VIDEO':
+      return 'VIDEO'
+    case 'TEXT':
+    case 'LINK':
+    default:
+      return 'TEXT'
+  }
+}
+
+function getWhatsAppMediaType(
+  stepType: AutomationStepType
+): 'audio' | 'image' | 'document' | 'video' | null {
+  switch (stepType) {
+    case 'AUDIO':
+      return 'audio'
+    case 'IMAGE':
+      return 'image'
+    case 'DOCUMENT':
+      return 'document'
+    case 'VIDEO':
+      return 'video'
+    default:
+      return null
+  }
+}
+
+function shouldUseCaption(stepType: AutomationStepType) {
+  return stepType === 'IMAGE' || stepType === 'DOCUMENT' || stepType === 'VIDEO'
+}
+
+async function downloadAutomationMedia(mediaUrl: string) {
+  const response = await fetch(mediaUrl)
+
+  if (!response.ok) {
+    throw new Error(`Failed to download automation media: ${response.status}`)
+  }
+
+  const arrayBuffer = await response.arrayBuffer()
+  return Buffer.from(arrayBuffer)
+}
+
+function normalizeNullableAutomationText(value?: string | null) {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : null
+}
 
 function scheduleConversationWakeUp(conversationId: string, targetDate: Date | null) {
   if (!targetDate) return
@@ -470,12 +589,27 @@ export async function runConversationAutomation(params: {
     return
   }
 
-  const normalizedContent = normalizeStepContentForSend(nextStep.type, nextStep.content)
+  let normalizedContent = normalizeStepContentForSend(
+  nextStep.type,
+  nextStep.content
+)
 
-  let externalMessageId: string | null = null
-  let messageType: 'TEXT' | 'AUDIO' | 'IMAGE' = 'TEXT'
+if (nextStep.type === 'TEXT' || nextStep.type === 'LINK') {
+  normalizedContent = applyPlaceholders(
+    normalizedContent,
+    conversation.contact?.name
+  )
+}
+
+    let externalMessageId: string | null = null
+  let externalMediaId: string | null = null
+  let messageType: 'TEXT' | 'AUDIO' | 'IMAGE' | 'DOCUMENT' | 'VIDEO' = 'TEXT'
   let contentForMessage = normalizedContent
   let externalStatus = 'sent'
+  let mediaUrlForMessage: string | null = null
+  let mimeTypeForMessage: string | null = null
+  let fileNameForMessage: string | null = null
+  let storageKeyForMessage: string | null = null
 
   if (nextStep.type === 'TEXT' || nextStep.type === 'LINK') {
     const waResponse = await sendWhatsAppTextMessage({
@@ -486,30 +620,83 @@ export async function runConversationAutomation(params: {
 
     externalMessageId = waResponse.messages?.[0]?.id ?? null
     messageType = 'TEXT'
-  } else if (nextStep.type === 'AUDIO') {
-    const waResponse = await sendWhatsAppMediaMessage({
-      phoneNumberId: conversation.phoneNumber.externalId,
-      to: conversation.contact.phone,
-      type: 'audio',
-      mediaId: normalizedContent
-    })
+  } else {
+    const mediaStepType = getWhatsAppMediaType(nextStep.type)
 
-    externalMessageId = waResponse.messages?.[0]?.id ?? null
-    messageType = 'AUDIO'
-    contentForMessage = ''
-  } else if (nextStep.type === 'IMAGE') {
-    const waResponse = await sendWhatsAppMediaMessage({
-      phoneNumberId: conversation.phoneNumber.externalId,
-      to: conversation.contact.phone,
-      type: 'image',
-      mediaId: normalizedContent
-    })
+    if (!mediaStepType) {
+      throw new Error(`Unsupported automation media step type: ${nextStep.type}`)
+    }
 
-    externalMessageId = waResponse.messages?.[0]?.id ?? null
-    messageType = 'IMAGE'
-    contentForMessage = ''
+    // Compatibilidade com o formato antigo:
+    // se não houver mediaUrl, assume que content ainda é um mediaId pronto
+    if (!nextStep.mediaUrl) {
+            const waResponse = await sendWhatsAppMediaMessage({
+        phoneNumberId: conversation.phoneNumber.externalId,
+        to: conversation.contact.phone,
+        type: mediaStepType,
+        mediaId: normalizedContent
+      })
+
+      externalMessageId = waResponse.messages?.[0]?.id ?? null
+      messageType = getAutomationMessageType(nextStep.type)
+      contentForMessage = ''
+    } else {
+      const mediaBuffer = await downloadAutomationMedia(nextStep.mediaUrl)
+
+      const uploadedMedia = await uploadWhatsAppMedia({
+        phoneNumberId: conversation.phoneNumber.externalId,
+        fileBuffer: mediaBuffer,
+        mimeType:
+          nextStep.mimeType ||
+          (mediaStepType === 'audio'
+            ? 'audio/ogg'
+            : mediaStepType === 'image'
+              ? 'image/jpeg'
+              : mediaStepType === 'video'
+                ? 'video/mp4'
+                : 'application/octet-stream'),
+        fileName:
+          nextStep.fileName ||
+          `${mediaStepType}-${Date.now()}${
+            mediaStepType === 'audio'
+              ? '.ogg'
+              : mediaStepType === 'image'
+                ? '.jpg'
+                : mediaStepType === 'video'
+                  ? '.mp4'
+                  : ''
+          }`
+      })
+
+      externalMediaId = uploadedMedia.id
+
+            const captionText = shouldUseCaption(nextStep.type)
+        ? normalizeNullableAutomationText(nextStep.content) ?? undefined
+        : undefined
+
+      const waResponse = await sendWhatsAppMediaMessage({
+        phoneNumberId: conversation.phoneNumber.externalId,
+        to: conversation.contact.phone,
+        type: mediaStepType,
+        mediaId: uploadedMedia.id,
+        caption: captionText,
+        fileName:
+          mediaStepType === 'document'
+            ? nextStep.fileName ?? undefined
+            : undefined
+      })
+
+      externalMessageId = waResponse.messages?.[0]?.id ?? null
+      messageType = getAutomationMessageType(nextStep.type)
+      contentForMessage = shouldUseCaption(nextStep.type)
+        ? normalizeNullableAutomationText(nextStep.content) ?? ''
+        : ''
+      mediaUrlForMessage = nextStep.mediaUrl ?? null
+      mimeTypeForMessage = nextStep.mimeType ?? null
+      fileNameForMessage = nextStep.fileName ?? null
+      storageKeyForMessage = nextStep.storageKey ?? null
+    }
   }
-
   if (!externalMessageId) {
     throw new Error(
       `Automation step send did not return externalMessageId for conversation ${conversation.id}`
@@ -530,20 +717,25 @@ export async function runConversationAutomation(params: {
     : null
 
   const result = await prisma.$transaction(async (tx) => {
-    const createdMessage = await tx.message.create({
-      data: {
-        conversationId: conversation.id,
-        senderType: 'SYSTEM',
-        direction: 'OUTBOUND',
-        type: messageType,
-        status: 'SENT',
-        provider: conversation.phoneNumber.provider,
-        content: contentForMessage,
-        externalMessageId,
-        externalStatus,
-        sentAt: now
-      }
-    })
+          const createdMessage = await tx.message.create({
+        data: {
+          conversationId: conversation.id,
+          senderType: 'SYSTEM',
+          direction: 'OUTBOUND',
+          type: messageType,
+          status: 'SENT',
+          provider: conversation.phoneNumber.provider,
+          content: contentForMessage,
+          mediaUrl: mediaUrlForMessage,
+          storageKey: storageKeyForMessage,
+          mimeType: mimeTypeForMessage,
+          fileName: fileNameForMessage,
+          externalMediaId,
+          externalMessageId,
+          externalStatus,
+          sentAt: now
+        }
+      })
 
     const updatedConversation = await tx.conversation.update({
       where: {

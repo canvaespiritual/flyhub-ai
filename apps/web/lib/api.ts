@@ -43,7 +43,48 @@ export type ApiError = Error & {
   status?: number
 }
 
-async function parseApiError(res: Response, fallbackMessage: string): Promise<ApiError> {
+export type CampaignStepType =
+  | 'text'
+  | 'audio'
+  | 'image'
+  | 'document'
+  | 'video'
+  | 'link'
+
+  export type CampaignStepMediaUploadResponse = {
+  mediaUrl: string
+  storageKey: string
+  mimeType: string
+  fileName: string
+}
+export type CampaignInitialStepPayload = {
+  order: number
+  type: CampaignStepType
+  content?: string | null
+  mediaUrl?: string | null
+  storageKey?: string | null
+  mimeType?: string | null
+  fileName?: string | null
+  delaySeconds?: number
+  isActive?: boolean
+}
+
+export type CampaignPayload = {
+  name: string
+  phoneNumberId: string
+  managerId?: string | null
+  metaAdId?: string | null
+  ref?: string | null
+  fallbackText?: string | null
+  initialPrompt?: string | null
+  isActive?: boolean
+  initialSteps?: CampaignInitialStepPayload[]
+}
+
+async function parseApiError(
+  res: Response,
+  fallbackMessage: string
+): Promise<ApiError> {
   let payload: unknown = null
 
   try {
@@ -85,7 +126,8 @@ async function parseApiError(res: Response, fallbackMessage: string): Promise<Ap
 
 async function apiFetch(url: string, options?: RequestInit) {
   const headers = new Headers(options?.headers)
-  const isFormData = typeof FormData !== 'undefined' && options?.body instanceof FormData
+  const isFormData =
+    typeof FormData !== 'undefined' && options?.body instanceof FormData
 
   if (options?.body && !isFormData && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
@@ -332,6 +374,7 @@ export async function logout() {
 
   return res.json()
 }
+
 export async function getCampaigns() {
   const res = await apiFetch(`${API_BASE_URL}/campaigns`, {
     cache: 'no-store'
@@ -356,7 +399,7 @@ export async function getCampaignOptions() {
   return res.json()
 }
 
-export async function createCampaign(payload: any) {
+export async function createCampaign(payload: CampaignPayload) {
   const res = await apiFetch(`${API_BASE_URL}/campaigns`, {
     method: 'POST',
     body: JSON.stringify(payload)
@@ -368,7 +411,11 @@ export async function createCampaign(payload: any) {
 
   return res.json()
 }
-export async function updateCampaign(campaignId: string, payload: any) {
+
+export async function updateCampaign(
+  campaignId: string,
+  payload: CampaignPayload
+) {
   const res = await apiFetch(`${API_BASE_URL}/campaigns/${campaignId}`, {
     method: 'PATCH',
     body: JSON.stringify(payload)
@@ -376,6 +423,38 @@ export async function updateCampaign(campaignId: string, payload: any) {
 
   if (!res.ok) {
     throw await parseApiError(res, 'Erro ao atualizar campanha')
+  }
+
+  return res.json()
+}
+
+export async function uploadCampaignStepMedia(
+  file: File,
+  type: 'audio' | 'image' | 'document' | 'video'
+): Promise<CampaignStepMediaUploadResponse> {
+  const formData = new FormData()
+
+  formData.append('type', type)
+  formData.append('file', file)
+
+  const res = await apiFetch(`${API_BASE_URL}/campaigns/upload-media`, {
+    method: 'POST',
+    body: formData
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao enviar mídia da campanha')
+  }
+
+  return res.json()
+}
+export async function deleteConversation(conversationId: string) {
+  const res = await apiFetch(`${API_BASE_URL}/conversations/${conversationId}`, {
+    method: 'DELETE'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao apagar conversa')
   }
 
   return res.json()

@@ -354,7 +354,60 @@ export async function conversationRoutes(app: FastifyInstance) {
       }
     })
   })
+    app.delete('/conversations/:id', async (request, reply) => {
+    const parsedParams = paramsSchema.safeParse(request.params)
+    const session = await getSessionFromRequest(request)
 
+    if (!parsedParams.success) {
+      return reply.status(400).send({
+        message: 'Invalid conversation id'
+      })
+    }
+
+    if (!session) {
+      return reply.status(401).send({
+        message: 'Não autenticado'
+      })
+    }
+
+    const { id } = parsedParams.data
+    const tenantId = session.user.tenantId
+    const currentUserRole = session.user.role
+
+    // 🔒 permissão: só MASTER e ADMIN
+    if (currentUserRole !== 'MASTER' && currentUserRole !== 'ADMIN') {
+      return reply.status(403).send({
+        message: 'Sem permissão para apagar conversa'
+      })
+    }
+
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id,
+        tenantId
+      },
+      select: {
+        id: true
+      }
+    })
+
+    if (!conversation) {
+      return reply.status(404).send({
+        message: 'Conversation not found'
+      })
+    }
+
+    // 🔥 delete (cascade cuida de messages/assignments)
+    await prisma.conversation.delete({
+      where: {
+        id
+      }
+    })
+
+    return {
+      ok: true
+    }
+  })
   app.get('/conversations/:id/messages', async (request, reply) => {
     const parsedParams = paramsSchema.safeParse(request.params)
     const parsedQuery = conversationMessagesQuerySchema.safeParse(request.query)
@@ -824,6 +877,7 @@ return serializeConversationUpdate(conversationForResponse)
 
     return response
   })
+    
   app.post('/conversations/:id/auto-assign', async (request, reply) => {
     const parsedParams = paramsSchema.safeParse(request.params)
     const session = await getSessionFromRequest(request)

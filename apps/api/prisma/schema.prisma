@@ -157,7 +157,11 @@ model CampaignInitialStep {
   campaignId   String
   order        Int
   type         CampaignStepType
-  content      String
+  content      String?
+  mediaUrl     String?
+  storageKey   String?
+  mimeType     String?
+  fileName     String?
   delaySeconds Int                     @default(0)
   isActive     Boolean                 @default(true)
   createdAt    DateTime                @default(now())
@@ -425,6 +429,8 @@ enum CampaignStepType {
   TEXT
   AUDIO
   IMAGE
+  DOCUMENT
+  VIDEO
   LINK
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Conversation, Lead, UserRole } from '@flyhub/shared'
 import { getMessagePreview } from '@/lib/chat/message-utils'
+import { deleteConversation } from '@/lib/api'
 
 type Props = {
   conversations: Conversation[]
@@ -145,7 +146,7 @@ export function ConversationList({
   assigningConversationId = null
 }: Props) {
   const [, forceUpdate] = useState(0)
-
+const [search, setSearch] = useState('')
   useEffect(() => {
     const interval = setInterval(() => {
       forceUpdate((v) => v + 1)
@@ -154,19 +155,42 @@ export function ConversationList({
     return () => clearInterval(interval)
   }, [])
 
-  const orderedConversations = useMemo(() => {
-    return sortConversationsForOperation(conversations, currentUserId)
-  }, [conversations, currentUserId])
+ const filteredConversations = useMemo(() => {
+  if (!search.trim()) return conversations
+
+  const term = search.toLowerCase()
+
+  return conversations.filter((conversation) => {
+    const lead = leadsMap[conversation.leadId]
+
+    return (
+      lead?.name?.toLowerCase().includes(term) ||
+      lead?.phone?.toLowerCase().includes(term)
+    )
+  })
+}, [conversations, search, leadsMap])
+
+const orderedConversations = useMemo(() => {
+  return sortConversationsForOperation(filteredConversations, currentUserId)
+}, [filteredConversations, currentUserId])
 
   return (
     <aside className="border-r border-neutral-800 bg-[#111b21]">
-      <div className="border-b border-neutral-800 px-4 py-4">
-        <h1 className="text-xl font-semibold text-white">Inbox</h1>
-      </div>
+      <div className="border-b border-neutral-800 px-4 py-4 space-y-3">
+  <h1 className="text-xl font-semibold text-white">Inbox</h1>
+
+  <input
+    value={search}
+    onChange={(e) => setSearch(e.target.value)}
+    placeholder="Buscar por nome ou telefone..."
+    className="w-full rounded-lg bg-[#202c33] px-3 py-2 text-sm text-white outline-none"
+  />
+</div>
 
       <div className="space-y-1 px-2 pb-2">
         {orderedConversations.map((conversation) => {
           const isSelected = conversation.id === selectedConversationId
+          const isUnread = conversation.unreadCount > 0
           const lead = leadsMap[conversation.leadId]
           const canOperate = canCurrentUserOperateConversation(
             conversation,
@@ -186,8 +210,12 @@ export function ConversationList({
             <div
               key={conversation.id}
               className={`rounded-2xl transition ${
-                isSelected ? 'bg-[#202c33]' : 'hover:bg-[#202c33]'
-              }`}
+  isSelected
+    ? 'bg-[#202c33]'
+    : isUnread
+      ? 'bg-[#1f2c34] hover:bg-[#2a3942]'
+      : 'hover:bg-[#202c33]'
+}`}
             >
               <button
                 type="button"
@@ -288,6 +316,25 @@ export function ConversationList({
                       {conversation.unreadCount}
                     </div>
                   )}
+                
+
+{(currentUserRole === 'master' || currentUserRole === 'admin') && (
+  <button
+    type="button"
+    onClick={async (e) => {
+      e.stopPropagation()
+
+      const confirmDelete = confirm('Apagar esta conversa?')
+      if (!confirmDelete) return
+
+      await deleteConversation(conversation.id)
+      window.location.reload()
+    }}
+    className="text-xs text-red-400 hover:text-red-300 ml-2"
+  >
+    🗑
+  </button>
+)}
                 </div>
               </button>
 

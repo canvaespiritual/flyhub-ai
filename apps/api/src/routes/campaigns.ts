@@ -2,18 +2,190 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { getSessionFromRequest } from '../lib/auth.js'
 import { prisma } from '../lib/prisma.js'
+import { uploadBufferToStorage } from '../lib/storage.js'
+import { convertAudioToOggOpus } from '../lib/audio-conversion.js'
 
 const campaignParamsSchema = z.object({
   id: z.string().min(1)
 })
 
-const campaignInitialStepInputSchema = z.object({
-  order: z.coerce.number().int().min(1).max(999),
-  type: z.enum(['text', 'audio', 'image', 'link']),
-  content: z.string().trim().min(1).max(5000),
-  delaySeconds: z.coerce.number().int().min(0).max(86400).default(0),
-  isActive: z.boolean().optional().default(true)
+const uploadCampaignMediaBodySchema = z.object({
+  type: z.enum(['audio', 'image', 'document', 'video'])
 })
+
+type UploadCampaignMediaType = 'audio' | 'image' | 'document' | 'video'
+
+function sanitizeFileName(fileName: string) {
+  return fileName
+    .normalize('NFKD')
+    .replace(/[^\w.\-]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function getStoragePrefixByCampaignStepType(type: UploadCampaignMediaType) {
+  switch (type) {
+    case 'audio':
+      return 'campaign-steps/audio'
+    case 'image':
+      return 'campaign-steps/image'
+    case 'document':
+      return 'campaign-steps/document'
+    case 'video':
+      return 'campaign-steps/video'
+  }
+}
+
+function getMaxFileSizeByCampaignStepType(type: UploadCampaignMediaType) {
+  switch (type) {
+    case 'audio':
+      return 16 * 1024 * 1024
+    case 'image':
+      return 20 * 1024 * 1024
+    case 'document':
+      return 20 * 1024 * 1024
+    case 'video':
+      return 50 * 1024 * 1024
+  }
+}
+
+function validateMimeTypeForCampaignStepType(
+  type: UploadCampaignMediaType,
+  mimeType?: string | null
+) {
+  if (!mimeType) return false
+
+  switch (type) {
+    case 'image':
+      return mimeType.startsWith('image/')
+    case 'audio':
+      return mimeType.startsWith('audio/')
+    case 'video':
+      return mimeType.startsWith('video/')
+    case 'document':
+      return true
+  }
+}
+
+function detectCampaignStepTypeFromMimeType(
+  mimeType?: string | null
+): UploadCampaignMediaType | null {
+  if (!mimeType) return null
+
+  if (mimeType.startsWith('image/')) return 'image'
+  if (mimeType.startsWith('audio/')) return 'audio'
+  if (mimeType.startsWith('video/')) return 'video'
+
+  return 'document'
+}
+
+async function streamToBuffer(stream: NodeJS.ReadableStream) {
+  const chunks: Buffer[] = []
+
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  }
+
+  return Buffer.concat(chunks)
+}
+
+async function parseCampaignMediaUploadRequest(request: any): Promise<{
+  type: UploadCampaignMediaType
+  file: {
+    buffer: Buffer
+    fileName: string
+    mimeType: string
+    size: number
+  }
+}> {
+  const parts = request.parts()
+
+  let type: UploadCampaignMediaType | '' = ''
+  let file:
+    | {
+        buffer: Buffer
+        fileName: string
+        mimeType: string
+        size: number
+      }
+    | undefined
+
+  for await (const part of parts) {
+    if (part.type === 'file') {
+      const buffer = await streamToBuffer(part.file)
+
+      file = {
+        buffer,
+        fileName: part.filename || 'arquivo',
+        mimeType: part.mimetype || 'application/octet-stream',
+        size: buffer.length
+      }
+
+      continue
+    }
+
+    if (part.fieldname === 'type') {
+      type = String(part.value ?? '') as UploadCampaignMediaType
+    }
+  }
+
+  const parsed = uploadCampaignMediaBodySchema.safeParse({ type })
+
+  if (!parsed.success) {
+    throw new Error(
+      JSON.stringify({
+        message: 'Dados inválidos',
+        issues: parsed.error.flatten()
+      })
+    )
+  }
+
+  if (!file) {
+    throw new Error(
+      JSON.stringify({
+        message: 'Arquivo é obrigatório'
+      })
+    )
+  }
+
+  return {
+    type: parsed.data.type,
+    file
+  }
+}
+const campaignInitialStepInputSchema = z
+  .object({
+    order: z.coerce.number().int().min(1).max(999),
+    type: z.enum(['text', 'audio', 'image', 'document', 'video', 'link']),
+    content: z.string().trim().max(5000).optional().nullable(),
+    mediaUrl: z.string().trim().max(5000).optional().nullable(),
+    storageKey: z.string().trim().max(1000).optional().nullable(),
+    mimeType: z.string().trim().max(255).optional().nullable(),
+    fileName: z.string().trim().max(255).optional().nullable(),
+    delaySeconds: z.coerce.number().int().min(0).max(86400).default(0),
+    isActive: z.boolean().optional().default(true)
+  })
+  .superRefine((step, ctx) => {
+    const needsTextContent = step.type === 'text' || step.type === 'link'
+    const hasTextContent = Boolean(step.content?.trim())
+    const hasMedia = Boolean(step.mediaUrl?.trim())
+
+    if (needsTextContent && !hasTextContent) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Texto e link precisam de conteúdo',
+        path: ['content']
+      })
+    }
+
+    if (!needsTextContent && !hasMedia) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Áudio, imagem, documento e vídeo precisam de mídia anexada',
+        path: ['mediaUrl']
+      })
+    }
+  })
 
 function hasDuplicateOrders(steps?: Array<{ order: number }>) {
   if (!steps?.length) return false
@@ -74,8 +246,12 @@ function normalizeNullableString(value?: string | null) {
 function normalizeInitialSteps(
   steps?: Array<{
     order: number
-    type: 'text' | 'audio' | 'image' | 'link'
-    content: string
+    type: 'text' | 'audio' | 'image' | 'document' | 'video' | 'link'
+    content?: string | null
+    mediaUrl?: string | null
+    storageKey?: string | null
+    mimeType?: string | null
+    fileName?: string | null
     delaySeconds?: number
     isActive?: boolean
   }>
@@ -86,8 +262,18 @@ function normalizeInitialSteps(
     .sort((a, b) => a.order - b.order)
     .map((step) => ({
       order: step.order,
-      type: step.type.toUpperCase() as 'TEXT' | 'AUDIO' | 'IMAGE' | 'LINK',
-      content: step.content.trim(),
+      type: step.type.toUpperCase() as
+        | 'TEXT'
+        | 'AUDIO'
+        | 'IMAGE'
+        | 'DOCUMENT'
+        | 'VIDEO'
+        | 'LINK',
+      content: normalizeNullableString(step.content),
+      mediaUrl: normalizeNullableString(step.mediaUrl),
+      storageKey: normalizeNullableString(step.storageKey),
+      mimeType: normalizeNullableString(step.mimeType),
+      fileName: normalizeNullableString(step.fileName),
       delaySeconds: step.delaySeconds ?? 0,
       isActive: step.isActive ?? true
     }))
@@ -120,8 +306,12 @@ function serializeCampaign(campaign: {
   initialSteps?: Array<{
     id: string
     order: number
-    type: 'TEXT' | 'AUDIO' | 'IMAGE' | 'LINK'
-    content: string
+    type: 'TEXT' | 'AUDIO' | 'IMAGE' | 'DOCUMENT' | 'VIDEO' | 'LINK'
+    content: string | null
+    mediaUrl: string | null
+    storageKey: string | null
+    mimeType: string | null
+    fileName: string | null
     delaySeconds: number
     isActive: boolean
     createdAt: Date
@@ -161,7 +351,11 @@ function serializeCampaign(campaign: {
         id: step.id,
         order: step.order,
         type: step.type.toLowerCase(),
-        content: step.content,
+        content: step.content ?? undefined,
+        mediaUrl: step.mediaUrl ?? undefined,
+        storageKey: step.storageKey ?? undefined,
+        mimeType: step.mimeType ?? undefined,
+        fileName: step.fileName ?? undefined,
         delaySeconds: step.delaySeconds,
         isActive: step.isActive,
         createdAt: step.createdAt.toISOString(),
@@ -171,6 +365,113 @@ function serializeCampaign(campaign: {
 }
 
 export async function campaignRoutes(app: FastifyInstance) {
+    app.post('/campaigns/upload-media', async (request, reply) => {
+    const session = await getSessionFromRequest(request)
+
+    if (!session) {
+      return reply.status(401).send({
+        message: 'Não autenticado'
+      })
+    }
+
+    const currentUserRole = session.user.role
+    const tenantId = session.user.tenantId
+
+    if (
+      currentUserRole !== 'MASTER' &&
+      currentUserRole !== 'ADMIN' &&
+      currentUserRole !== 'MANAGER'
+    ) {
+      return reply.status(403).send({
+        message: 'Sem permissão para enviar mídia de campanha'
+      })
+    }
+
+    if (!(request as any).isMultipart?.()) {
+      return reply.status(400).send({
+        message: 'A requisição precisa ser multipart/form-data'
+      })
+    }
+
+    let uploadData: Awaited<ReturnType<typeof parseCampaignMediaUploadRequest>>
+
+    try {
+      uploadData = await parseCampaignMediaUploadRequest(request)
+    } catch (error) {
+      try {
+        const parsedError = JSON.parse((error as Error).message)
+        return reply.status(400).send(parsedError)
+      } catch {
+        return reply.status(400).send({
+          message: 'Dados inválidos no upload'
+        })
+      }
+    }
+
+    const { type, file } = uploadData
+
+    let processedBuffer = file.buffer
+    let processedMimeType = file.mimeType
+    let processedFileName = file.fileName || `${type}_${Date.now()}`
+
+    if (type === 'audio') {
+      try {
+        const converted = await convertAudioToOggOpus({
+          inputBuffer: file.buffer
+        })
+
+        processedBuffer = converted.buffer
+        processedMimeType = converted.mimeType
+        processedFileName =
+          processedFileName.replace(/\.[^.]+$/i, '') +
+          '.' +
+          converted.fileExtension
+      } catch (error) {
+        request.log.error({ error }, 'Campaign audio conversion failed')
+        return reply.status(500).send({
+          message: 'Falha ao converter áudio da campanha'
+        })
+      }
+    }
+
+    if (!validateMimeTypeForCampaignStepType(type, processedMimeType)) {
+      return reply.status(400).send({
+        message: `Mime type inválido para ${type}: ${processedMimeType}`
+      })
+    }
+
+    const detectedType = detectCampaignStepTypeFromMimeType(processedMimeType)
+
+    if (!detectedType || detectedType !== type) {
+      return reply.status(400).send({
+        message: `O arquivo enviado não corresponde ao tipo declarado "${type}"`
+      })
+    }
+
+    const maxFileSize = getMaxFileSizeByCampaignStepType(type)
+
+    if (processedBuffer.length > maxFileSize) {
+      return reply.status(400).send({
+        message: `Arquivo excede o limite para ${type}. Máximo permitido: ${maxFileSize} bytes`
+      })
+    }
+
+    const safeFileName = sanitizeFileName(processedFileName)
+    const storageKey = `${getStoragePrefixByCampaignStepType(type)}/${tenantId}/${Date.now()}-${safeFileName}`
+
+    const storageUpload = await uploadBufferToStorage({
+      key: storageKey,
+      body: processedBuffer,
+      contentType: processedMimeType
+    })
+
+    return reply.status(201).send({
+      mediaUrl: storageUpload.url,
+      storageKey: storageUpload.key,
+      mimeType: processedMimeType,
+      fileName: safeFileName
+    })
+  })
   app.get('/campaigns', async (request, reply) => {
     const session = await getSessionFromRequest(request)
 
@@ -667,6 +968,10 @@ export async function campaignRoutes(app: FastifyInstance) {
               order: step.order,
               type: step.type,
               content: step.content,
+              mediaUrl: step.mediaUrl,
+              storageKey: step.storageKey,
+              mimeType: step.mimeType,
+              fileName: step.fileName,
               delaySeconds: step.delaySeconds,
               isActive: step.isActive
             }))
