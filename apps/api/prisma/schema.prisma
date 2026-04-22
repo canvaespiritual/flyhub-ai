@@ -206,6 +206,7 @@ model Conversation {
   priority        ConversationPriority @default(NORMAL)
   subject         String?
   lastMessageAt   DateTime?
+  lastSeenAt      DateTime?
   lastInboundAt   DateTime?
   lastOutboundAt  DateTime?
   waitingSince    DateTime?
@@ -243,6 +244,7 @@ model Conversation {
   @@index([tenantId, assignedUserId, updatedAt])
   @@index([tenantId, priority, updatedAt])
   @@index([tenantId, waitingSince])
+  @@index([lastSeenAt])
   @@index([tenantId, assignedAt])
   @@index([phoneNumberId, updatedAt])
   @@index([contactId, updatedAt])

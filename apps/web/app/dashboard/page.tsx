@@ -210,7 +210,8 @@ function applyConversationRealtimeUpdate(
 
 function applyRealtimeMessageToConversationList(
   conversations: Conversation[],
-  message: Message
+  message: Message,
+  selectedConversationId: string | null
 ) {
   const existingConversation = conversations.find(
     (conversation) => conversation.id === message.conversationId
@@ -229,11 +230,20 @@ function applyRealtimeMessageToConversationList(
         return conversation
       }
 
-      return {
-        ...conversation,
-        lastMessage: message,
-        updatedAt: message.createdAt
-      }
+      const isIncomingForUnread =
+  message.direction === 'inbound' || message.senderType === 'ai' || message.senderType === 'system'
+
+const isConversationCurrentlyOpen = conversation.id === selectedConversationId
+
+return {
+  ...conversation,
+  lastMessage: message,
+  updatedAt: message.createdAt,
+  unreadCount:
+    isIncomingForUnread && !isConversationCurrentlyOpen
+      ? (conversation.unreadCount ?? 0) + 1
+      : conversation.unreadCount ?? 0
+}
     })
   )
 
@@ -324,6 +334,16 @@ export default function DashboardPage() {
     setHasMoreMessages(messagesResponse.hasMore)
     setNextCursor(messagesResponse.nextCursor)
     setLead(ld)
+    setConversations((prev) =>
+  prev.map((conversation) =>
+    conversation.id === conversationId
+      ? {
+          ...conversation,
+          unreadCount: 0
+        }
+      : conversation
+  )
+)
   }
 
   async function loadOlderMessages() {
@@ -472,7 +492,11 @@ export default function DashboardPage() {
             let foundConversation = false
 
             setConversations((prev) => {
-              const result = applyRealtimeMessageToConversationList(prev, incomingMessage)
+              const result = applyRealtimeMessageToConversationList(
+  prev,
+  incomingMessage,
+  selectedConversationId
+)
               foundConversation = result.foundConversation
               return result.nextConversations
             })
@@ -665,9 +689,20 @@ const mobileLeadWhatsAppLink = mobileLeadPhone
   }
 
   function handleSelectConversation(id: string) {
-    setSelectedConversationId(id)
-    setMobileView('chat')
-  }
+  setSelectedConversationId(id)
+  setMobileView('chat')
+
+  setConversations((prev) =>
+    prev.map((conversation) =>
+      conversation.id === id
+        ? {
+            ...conversation,
+            unreadCount: 0
+          }
+        : conversation
+    )
+  )
+}
 
   function handleBack() {
     setMobileView('list')

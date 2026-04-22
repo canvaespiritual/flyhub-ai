@@ -312,6 +312,7 @@ export async function conversationRoutes(app: FastifyInstance) {
         contact: true,
         assignedUser: true,
         phoneNumber: true,
+        
         messages: {
           orderBy: {
             createdAt: 'desc'
@@ -321,30 +322,55 @@ export async function conversationRoutes(app: FastifyInstance) {
             senderUser: true
           }
         }
+        
       },
       orderBy: {
         updatedAt: 'desc'
       }
     })
 
-    return conversations.map((conversation) => {
-      const lastMessage = conversation.messages[0]
+    const unreadCountsEntries = await Promise.all(
+  conversations.map(async (conversation) => {
+    const unreadCount = await prisma.message.count({
+      where: {
+        conversationId: conversation.id,
+        direction: 'INBOUND',
+        ...(conversation.lastSeenAt
+          ? {
+              createdAt: {
+                gt: conversation.lastSeenAt
+              }
+            }
+          : {})
+      }
+    })
 
-      return {
-        id: conversation.id,
-        leadId: conversation.contact.id,
-        channel: mapConversationChannel(conversation.channel),
-        mode: mapConversationMode(conversation.mode),
-        status: mapConversationStatus(conversation.status),
-        priority: mapConversationPriority(conversation.priority),
-        subject: conversation.subject ?? undefined,
-        metaThreadId: conversation.metaThreadId ?? undefined,
-        campaignId: conversation.campaignId ?? undefined,
-        managerId: conversation.managerId ?? undefined,
-        messages: [],
-        lastMessage: lastMessage ? serializeMessage(lastMessage) : undefined,
-        unreadCount: 0,
-        updatedAt: conversation.updatedAt.toISOString(),
+    return [conversation.id, unreadCount] as const
+  })
+)
+
+const unreadCountsMap = Object.fromEntries(unreadCountsEntries)
+
+    return conversations.map((conversation) => {
+  const lastMessage = conversation.messages[0]
+
+  const unreadCount = unreadCountsMap[conversation.id] ?? 0
+
+  return {
+    id: conversation.id,
+    leadId: conversation.contact.id,
+    channel: mapConversationChannel(conversation.channel),
+    mode: mapConversationMode(conversation.mode),
+    status: mapConversationStatus(conversation.status),
+    priority: mapConversationPriority(conversation.priority),
+    subject: conversation.subject ?? undefined,
+    metaThreadId: conversation.metaThreadId ?? undefined,
+    campaignId: conversation.campaignId ?? undefined,
+    managerId: conversation.managerId ?? undefined,
+    messages: [],
+    lastMessage: lastMessage ? serializeMessage(lastMessage) : undefined,
+    unreadCount,
+    updatedAt: conversation.updatedAt.toISOString(),
         assignedAt: conversation.assignedAt?.toISOString(),
         waitingSince: conversation.waitingSince?.toISOString(),
         firstResponseAt: conversation.firstResponseAt?.toISOString(),
@@ -460,6 +486,14 @@ export async function conversationRoutes(app: FastifyInstance) {
         message: 'Conversation not found'
       })
     }
+        await prisma.conversation.update({
+      where: {
+        id
+      },
+      data: {
+        lastSeenAt: new Date()
+      }
+    })
 
     const where = {
       conversationId: id,

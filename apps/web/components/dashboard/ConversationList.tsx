@@ -222,140 +222,85 @@ const orderedConversations = useMemo(() => {
                 onClick={() => onSelectConversation(conversation.id)}
                 className="w-full p-3 text-left"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-white">
-                      {lead?.name ?? lead?.phone ?? 'Carregando...'}
-                    </p>
+                <div className="flex items-center gap-3">
+  {/* Avatar */}
+  <div className="w-12 h-12 rounded-full bg-[#202c33] flex items-center justify-center text-white font-semibold">
+    {lead?.name?.charAt(0)?.toUpperCase() ?? '?'}
+  </div>
 
-                    <p className="mt-1 truncate text-sm text-neutral-400">
-                      {conversation.lastMessage
-                        ? getMessagePreview(conversation.lastMessage)
-                        : 'Sem mensagens'}
-                    </p>
+  {/* Conteúdo */}
+  <div className="flex-1 min-w-0">
+    {/* Linha 1: Nome + Hora */}
+    <div className="flex items-center justify-between">
+      <p className={`truncate font-medium ${isUnread ? 'text-white' : 'text-neutral-300'}`}>
+        {lead?.name ?? lead?.phone ?? 'Carregando...'}
+      </p>
 
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-neutral-400">
-                      <span
-                        className={`rounded-full px-2 py-0.5 font-medium ${
-                          conversation.mode === 'ai'
-                            ? 'bg-violet-500/15 text-violet-300'
-                            : 'bg-emerald-500/15 text-emerald-300'
-                        }`}
-                      >
-                        {conversation.mode === 'ai' ? 'IA' : 'Manual'}
-                      </span>
+      <span className="text-[11px] text-neutral-500 ml-2 whitespace-nowrap">
+        {conversation.lastMessage?.createdAt
+          ? new Date(conversation.lastMessage.createdAt).toLocaleTimeString('pt-BR', {
+              hour: '2-digit',
+              minute: '2-digit'
+            })
+          : ''}
+      </span>
+    </div>
 
-                      <span className="rounded-full bg-white/5 px-2 py-0.5">
-                        {getConversationStatusLabel(conversation.status)}
-                      </span>
+    {/* Linha 2: Preview + badge */}
+    <div className="flex items-center justify-between mt-1">
+      <p className="truncate text-sm text-neutral-400">
+        {conversation.lastMessage
+          ? getMessagePreview(conversation.lastMessage)
+          : 'Sem mensagens'}
+      </p>
 
-                      <span className="rounded-full bg-white/5 px-2 py-0.5">
-                        {getChannelLabel(conversation.channel)}
-                      </span>
+      {conversation.unreadCount > 0 && (
+        <div className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#25d366] px-1 text-[10px] font-bold text-black">
+          {conversation.unreadCount}
+        </div>
+      )}
+    </div>
+  </div>
 
-                      <span
-                        className={`rounded-full px-2 py-0.5 ${
-                          conversation.priority === 'high'
-                            ? 'bg-red-500/15 text-red-300'
-                            : conversation.priority === 'low'
-                              ? 'bg-sky-500/15 text-sky-300'
-                              : 'bg-white/5'
-                        }`}
-                      >
-                        Prioridade {getPriorityLabel(conversation.priority)}
-                      </span>
+  {/* Botão delete (mantido) */}
+  {(currentUserRole === 'master' || currentUserRole === 'admin') && (
+    <button
+      type="button"
+      onClick={async (e) => {
+        e.stopPropagation()
 
-                      {sla && (
-                        <span
-                          className={`rounded-full px-2 py-0.5 font-medium ${
-                            sla.level === 'expired'
-                              ? 'bg-red-500/20 text-red-300'
-                              : sla.level === 'warning'
-                                ? 'bg-yellow-500/20 text-yellow-300'
-                                : 'bg-white/5 text-neutral-400'
-                          }`}
-                        >
-                          {sla.label}
-                        </span>
-                      )}
+        const confirmDelete = confirm('Apagar esta conversa?')
+        if (!confirmDelete) return
 
-                      {conversation.assignedUser?.name ? (
-                        <span
-                          className={`truncate rounded-full px-2 py-0.5 ${
-                            isOwnedByCurrentUser
-                              ? 'bg-[#25d366]/15 text-[#86efac]'
-                              : 'bg-white/5'
-                          }`}
-                        >
-                          {isOwnedByCurrentUser
-                            ? `${conversation.assignedUser.name} • sua`
-                            : conversation.assignedUser.name}
-                        </span>
-                      ) : (
-                        <span className="truncate rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300">
-                          Sem responsável
-                        </span>
-                      )}
+        await deleteConversation(conversation.id)
+        window.location.reload()
+      }}
+      className="text-xs text-red-400 hover:text-red-300 ml-2"
+    >
+      🗑
+    </button>
+  )}
+</div>
+                        </button>
 
-                      {conversation.phoneNumber?.label && (
-                        <span className="truncate rounded-full bg-white/5 px-2 py-0.5">
-                          {conversation.phoneNumber.label}
-                        </span>
-                      )}
-
-                      {!canOperate && currentUserRole === 'agent' && (
-                        <span className="truncate rounded-full bg-red-500/15 px-2 py-0.5 text-red-300">
-                          Somente leitura
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {conversation.unreadCount > 0 && (
-                    <div className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#25d366] px-1 text-[10px] font-bold text-black">
-                      {conversation.unreadCount}
-                    </div>
-                  )}
-                
-
-{(currentUserRole === 'master' || currentUserRole === 'admin') && (
-  <button
-    type="button"
-    onClick={async (e) => {
-      e.stopPropagation()
-
-      const confirmDelete = confirm('Apagar esta conversa?')
-      if (!confirmDelete) return
-
-      await deleteConversation(conversation.id)
-      window.location.reload()
-    }}
-    className="text-xs text-red-400 hover:text-red-300 ml-2"
-  >
-    🗑
-  </button>
-)}
-                </div>
-              </button>
-
-              {canAssume && (
-                <div className="px-3 pb-3">
-                  <button
-                    type="button"
-                    disabled={isAssigning}
-                    onClick={async () => {
-                      await onAssignConversation(conversation.id)
-                    }}
-                    className="rounded-full bg-[#25d366] px-3 py-1.5 text-xs font-semibold text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isAssigning ? 'Assumindo...' : 'Assumir'}
-                  </button>
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </aside>
+                      {canAssume && (
+                      <div className="px-3 pb-3">
+                      <button
+                        type="button"
+                       disabled={isAssigning}
+                         onClick={async () => {
+                          await onAssignConversation(conversation.id)
+                           }}
+                           className="rounded-full bg-[#25d366] px-3 py-1.5 text-xs font-semibold text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                               {isAssigning ? 'Assumindo...' : 'Assumir'}
+                         </button>
+                        </div>
+                       )}
+                     </div>
+                     )
+                   })}
+                 </div>
+                 </aside>
   )
 }
