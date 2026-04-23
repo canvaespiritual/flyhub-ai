@@ -45,7 +45,7 @@ function canAccessUsers(role: UserRole) {
   return role === 'admin' || role === 'master'
 }
 
-function getRoleLabel(role: User['role']) {
+function formatRole(role: 'master' | 'admin' | 'manager' | 'agent') {
   switch (role) {
     case 'master':
       return 'MASTER'
@@ -55,8 +55,6 @@ function getRoleLabel(role: User['role']) {
       return 'MANAGER'
     case 'agent':
       return 'AGENT'
-    default:
-      return role.toUpperCase()
   }
 }
 
@@ -470,7 +468,7 @@ export default function DashboardSettingsUsersPage() {
                       <tr key={user.id} className="border-b border-neutral-900">
                         <td className="px-3 py-3">{user.name}</td>
                         <td className="px-3 py-3 text-neutral-300">{user.email}</td>
-                        <td className="px-3 py-3 uppercase">{getRoleLabel(user.role)}</td>
+                        <td className="px-3 py-3 uppercase">{formatRole(user.role)}</td>
                         <td className="px-3 py-3 text-neutral-300">
                           {user.manager?.name || (user.role === 'agent' ? 'Sem manager' : '—')}
                         </td>
