@@ -308,6 +308,12 @@ export type User = {
   role: 'master' | 'admin' | 'manager' | 'agent'
   tenantId: string
   isActive: boolean
+  managerId?: string
+  manager?: {
+    id: string
+    name: string
+    email: string
+  }
   presenceStatus: 'available' | 'paused'
   eligibleForAssignment: boolean
 }
@@ -324,8 +330,38 @@ export type PresenceUser = {
   presenceStatus: PresenceStatus
 }
 
-export async function getUsers(): Promise<User[]> {
-  const res = await apiFetch(`${API_BASE_URL}/users`, {
+export type CreateUserPayload = {
+  name: string
+  email: string
+  password: string
+  role: 'admin' | 'manager' | 'agent'
+  managerId?: string | null
+}
+
+export type UpdateUserPayload = {
+  name?: string
+  email?: string
+  password?: string
+  role?: 'manager' | 'agent'
+  managerId?: string | null
+}
+
+export type UpdateUserStatusPayload = {
+  isActive: boolean
+}
+
+export async function getUsers(
+  params?: { status?: 'active' | 'inactive' | 'all' }
+): Promise<User[]> {
+  const searchParams = new URLSearchParams()
+
+  if (params?.status) {
+    searchParams.set('status', params.status)
+  }
+
+  const suffix = searchParams.toString() ? `?${searchParams.toString()}` : ''
+
+  const res = await apiFetch(`${API_BASE_URL}/users${suffix}`, {
     cache: 'no-store'
   })
 
@@ -455,6 +491,50 @@ export async function deleteConversation(conversationId: string) {
 
   if (!res.ok) {
     throw await parseApiError(res, 'Erro ao apagar conversa')
+  }
+
+  return res.json()
+}
+export async function createUser(payload: CreateUserPayload): Promise<User> {
+  const res = await apiFetch(`${API_BASE_URL}/users`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao criar usuário')
+  }
+
+  return res.json()
+}
+
+export async function updateUser(
+  userId: string,
+  payload: UpdateUserPayload
+): Promise<User> {
+  const res = await apiFetch(`${API_BASE_URL}/users/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao atualizar usuário')
+  }
+
+  return res.json()
+}
+
+export async function updateUserStatus(
+  userId: string,
+  payload: UpdateUserStatusPayload
+): Promise<User> {
+  const res = await apiFetch(`${API_BASE_URL}/users/${userId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao atualizar status do usuário')
   }
 
   return res.json()

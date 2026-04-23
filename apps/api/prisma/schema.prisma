@@ -10,37 +10,51 @@ datasource db {
 model Tenant {
   id        String   @id @default(cuid())
   name      String
+  slug      String?  @unique
+  isActive  Boolean  @default(true)
+  timezone  String?  @default("America/Sao_Paulo")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users         User[]
-  contacts      Contact[]
-  conversations Conversation[]
-  phoneNumbers  PhoneNumber[]
-  campaigns     Campaign[]
-  webhookEvents WebhookEvent[]
-  sessions Session[]
-  
+  users              User[]
+  contacts           Contact[]
+  conversations      Conversation[]
+  phoneNumbers       PhoneNumber[]
+  campaigns          Campaign[]
+  webhookEvents      WebhookEvent[]
+  sessions           Session[]
+  operationSettings  OperationSettings?
+  aiConfig           OperationAiConfig?
+  messageTemplates   MessageTemplate[]
+  broadcasts         Broadcast[]
 }
 
 model PhoneNumber {
-  id                String          @id @default(cuid())
-  number            String          @unique
+  id                String                    @id @default(cuid())
+  number            String                    @unique
   label             String?
   tenantId          String
-  provider          MessageProvider @default(WHATSAPP_CLOUD)
+  managerId         String?
+  provider          MessageProvider           @default(WHATSAPP_CLOUD)
   providerAccountId String?
   externalId        String?
-  isActive          Boolean         @default(true)
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  isActive          Boolean                   @default(true)
+  isDefault         Boolean                   @default(false)
+  profileName       String?
+  profileAbout      String?
+  profileImageUrl   String?
+  connectionStatus  PhoneNumberConnectionStatus @default(DISCONNECTED)
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
 
   tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  manager        User?          @relation("PhoneNumberManager", fields: [managerId], references: [id], onDelete: SetNull)
   conversations  Conversation[]
   campaigns      Campaign[]
   webhookEvents  WebhookEvent[]
 
   @@index([tenantId, isActive])
+  @@index([tenantId, managerId, isActive])
   @@index([externalId])
 }
 
@@ -70,7 +84,10 @@ model User {
   assignedConversations Conversation[] @relation("ConversationAssignedUser")
   managedConversations  Conversation[] @relation("ConversationManager")
   managedCampaigns      Campaign[]     @relation("CampaignManager")
+  managedPhoneNumbers   PhoneNumber[]  @relation("PhoneNumberManager")
   assignedByEvents      Assignment[]   @relation("AssignmentAssignedByUser")
+  createdTemplates      MessageTemplate[] @relation("MessageTemplateCreatedByUser")
+  createdBroadcasts     Broadcast[]       @relation("BroadcastCreatedByUser")
 
   // 🔐 SESSÕES
   sessions Session[]
@@ -342,6 +359,81 @@ model WebhookEvent {
   @@index([externalEventId])
 }
 
+model OperationSettings {
+  id                          String   @id @default(cuid())
+  tenantId                    String   @unique
+  defaultSlaFirstResponseSec  Int      @default(300)
+  allowManagerManualAssign    Boolean  @default(true)
+  allowAgentSelfAssign        Boolean  @default(true)
+  autoAssignEnabled           Boolean  @default(true)
+  autoAssignOnlyAgents        Boolean  @default(true)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model OperationAiConfig {
+  id               String   @id @default(cuid())
+  tenantId         String   @unique
+  isEnabled        Boolean  @default(false)
+  defaultMode      ConversationMode @default(AI)
+  promptBase       String?
+  handoffPrompt    String?
+  fallbackBehavior String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model MessageTemplate {
+  id               String                @id @default(cuid())
+  tenantId         String
+  createdByUserId  String?
+  name             String
+  category         TemplateCategory
+  languageCode     String                @default("pt_BR")
+  status           TemplateStatus        @default(DRAFT)
+  providerTemplateId String?
+  headerText       String?
+  bodyText         String
+  footerText       String?
+  isActive         Boolean               @default(true)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  tenant         Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdByUser  User?  @relation("MessageTemplateCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  broadcasts     Broadcast[]
+
+  @@index([tenantId, category, isActive])
+  @@index([tenantId, status, createdAt])
+}
+
+model Broadcast {
+  id                String          @id @default(cuid())
+  tenantId          String
+  createdByUserId   String?
+  templateId        String?
+  name              String
+  status            BroadcastStatus @default(DRAFT)
+  scheduledAt       DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  audienceFilter    Json?
+  messageBody       String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdByUser  User?           @relation("BroadcastCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  template       MessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, scheduledAt])
+}
+
 enum ConversationStatus {
   OPEN
   PENDING
@@ -450,5 +542,35 @@ enum ConversationAutomationStatus {
   IDLE
   RUNNING
   COMPLETED
+  CANCELLED
+}
+
+enum PhoneNumberConnectionStatus {
+  DISCONNECTED
+  CONNECTING
+  CONNECTED
+  ERROR
+}
+
+enum TemplateCategory {
+  UTILITY
+  MARKETING
+  AUTHENTICATION
+}
+
+enum TemplateStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
+enum BroadcastStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  COMPLETED
+  FAILED
   CANCELLED
 }

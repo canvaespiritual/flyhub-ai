@@ -9,6 +9,7 @@ type SessionUser = {
 type ConversationWithAssignedUser = {
   id: string
   tenantId: string
+  managerId?: string | null
   assignedUserId: string | null
   assignedUser?: {
     id: string
@@ -35,6 +36,13 @@ type ResolveAssignmentResult =
       message: string
     }
 
+function buildManagerScope(sessionUser: SessionUser): Prisma.ConversationWhereInput {
+  return {
+    tenantId: sessionUser.tenantId,
+    managerId: sessionUser.id
+  }
+}
+
 export function buildConversationAccessWhere(
   sessionUser: SessionUser,
   conversationId: string,
@@ -44,10 +52,17 @@ export function buildConversationAccessWhere(
 ): Prisma.ConversationWhereInput {
   const allowAgentUnassigned = options?.allowAgentUnassigned ?? false
 
-  if (sessionUser.role === 'MASTER' || sessionUser.role === 'ADMIN' || sessionUser.role === 'MANAGER') {
+  if (sessionUser.role === 'MASTER' || sessionUser.role === 'ADMIN') {
     return {
       id: conversationId,
       tenantId: sessionUser.tenantId
+    }
+  }
+
+  if (sessionUser.role === 'MANAGER') {
+    return {
+      id: conversationId,
+      ...buildManagerScope(sessionUser)
     }
   }
 
@@ -56,10 +71,7 @@ export function buildConversationAccessWhere(
     tenantId: sessionUser.tenantId,
     ...(allowAgentUnassigned
       ? {
-          OR: [
-            { assignedUserId: sessionUser.id },
-            { assignedUserId: null }
-          ]
+          OR: [{ assignedUserId: sessionUser.id }, { assignedUserId: null }]
         }
       : {
           assignedUserId: sessionUser.id
@@ -75,20 +87,21 @@ export function buildConversationListWhere(
 ): Prisma.ConversationWhereInput {
   const allowAgentUnassigned = options?.allowAgentUnassigned ?? false
 
-  if (sessionUser.role === 'MASTER' || sessionUser.role === 'ADMIN' || sessionUser.role === 'MANAGER') {
+  if (sessionUser.role === 'MASTER' || sessionUser.role === 'ADMIN') {
     return {
       tenantId: sessionUser.tenantId
     }
+  }
+
+  if (sessionUser.role === 'MANAGER') {
+    return buildManagerScope(sessionUser)
   }
 
   return {
     tenantId: sessionUser.tenantId,
     ...(allowAgentUnassigned
       ? {
-          OR: [
-            { assignedUserId: sessionUser.id },
-            { assignedUserId: null }
-          ]
+          OR: [{ assignedUserId: sessionUser.id }, { assignedUserId: null }]
         }
       : {
           assignedUserId: sessionUser.id
@@ -105,12 +118,15 @@ export function canOperateConversation(
 ) {
   const allowAgentUnassigned = options?.allowAgentUnassigned ?? false
 
-  if (
-    sessionUser.role === 'MASTER' ||
-    sessionUser.role === 'ADMIN' ||
-    sessionUser.role === 'MANAGER'
-  ) {
+  if (sessionUser.role === 'MASTER' || sessionUser.role === 'ADMIN') {
     return true
+  }
+
+  if (sessionUser.role === 'MANAGER') {
+    return (
+      conversation.tenantId === sessionUser.tenantId &&
+      conversation.managerId === sessionUser.id
+    )
   }
 
   if (conversation.assignedUserId === sessionUser.id) {
@@ -139,11 +155,25 @@ export function resolveAssignmentTarget(
 ): ResolveAssignmentResult {
   const { sessionUser, conversation, requestedUserId } = input
 
-  if (
-    sessionUser.role === 'MASTER' ||
-    sessionUser.role === 'ADMIN' ||
-    sessionUser.role === 'MANAGER'
-  ) {
+  if (sessionUser.role === 'MASTER' || sessionUser.role === 'ADMIN') {
+    return {
+      ok: true,
+      targetUserId: requestedUserId ?? null
+    }
+  }
+
+  if (sessionUser.role === 'MANAGER') {
+    if (
+      conversation.tenantId !== sessionUser.tenantId ||
+      conversation.managerId !== sessionUser.id
+    ) {
+      return {
+        ok: false,
+        status: 403,
+        message: 'Manager cannot assign conversation outside own scope'
+      }
+    }
+
     return {
       ok: true,
       targetUserId: requestedUserId ?? null

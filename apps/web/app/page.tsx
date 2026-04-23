@@ -15,15 +15,20 @@ export default function Page() {
   useEffect(() => {
     async function checkAuth() {
       try {
-        await getCurrentUser()
-        router.replace('/dashboard')
+        const auth = await getCurrentUser()
+
+        if (auth?.user?.role === 'master') {
+          router.replace('/master')
+        } else {
+          router.replace('/dashboard')
+        }
       } catch {
         setLoading(false)
       }
     }
 
     checkAuth()
-  }, [])
+  }, [router])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -31,7 +36,14 @@ export default function Page() {
     try {
       setError('')
       await login(email, password)
-      router.replace('/dashboard')
+
+      const auth = await getCurrentUser()
+
+      if (auth?.user?.role === 'master') {
+        router.replace('/master')
+      } else {
+        router.replace('/dashboard')
+      }
     } catch (err: any) {
       setError(err.message || 'Erro ao logar')
     }

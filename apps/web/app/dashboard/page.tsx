@@ -5,6 +5,9 @@ import type { Conversation, ConversationMode, Lead, Message, UserRole } from '@f
 import { ChatWindow } from '@/components/dashboard/ChatWindow'
 import { ConversationList } from '@/components/dashboard/ConversationList'
 import { LeadSidebar } from '@/components/dashboard/LeadSidebar'
+import { AppShell } from '@/components/layout/AppShell'
+import { AppSidebar } from '@/components/layout/AppSidebar'
+import { AppTopbar } from '@/components/layout/AppTopbar'
 import {
   assignConversation,
   logout,
@@ -230,20 +233,18 @@ function applyRealtimeMessageToConversationList(
         return conversation
       }
 
-      const isIncomingForUnread =
-  message.direction === 'inbound' || message.senderType === 'ai' || message.senderType === 'system'
+      const isConversationCurrentlyOpen = conversation.id === selectedConversationId
+      const shouldIncreaseUnread =
+        !isConversationCurrentlyOpen && message.direction === 'inbound'
 
-const isConversationCurrentlyOpen = conversation.id === selectedConversationId
-
-return {
-  ...conversation,
-  lastMessage: message,
-  updatedAt: message.createdAt,
-  unreadCount:
-    isIncomingForUnread && !isConversationCurrentlyOpen
-      ? (conversation.unreadCount ?? 0) + 1
-      : conversation.unreadCount ?? 0
-}
+      return {
+        ...conversation,
+        lastMessage: message,
+        updatedAt: message.createdAt,
+        unreadCount: shouldIncreaseUnread
+          ? (conversation.unreadCount ?? 0) + 1
+          : conversation.unreadCount ?? 0
+      }
     })
   )
 
@@ -279,23 +280,23 @@ export default function DashboardPage() {
     })
   }
 
- function upsertMessage(message: Message) {
-  setMessages((prev) => {
-    const existingIndex = prev.findIndex((item) => item.id === message.id)
+  function upsertMessage(message: Message) {
+    setMessages((prev) => {
+      const existingIndex = prev.findIndex((item) => item.id === message.id)
 
-    if (existingIndex === -1) {
-      return [...prev, message]
-    }
+      if (existingIndex === -1) {
+        return [...prev, message]
+      }
 
-    const next = [...prev]
-    next[existingIndex] = {
-      ...next[existingIndex],
-      ...message
-    }
+      const next = [...prev]
+      next[existingIndex] = {
+        ...next[existingIndex],
+        ...message
+      }
 
-    return next
-  })
-}
+      return next
+    })
+  }
 
   async function loadConversations() {
     const data = await getConversations()
@@ -335,15 +336,15 @@ export default function DashboardPage() {
     setNextCursor(messagesResponse.nextCursor)
     setLead(ld)
     setConversations((prev) =>
-  prev.map((conversation) =>
-    conversation.id === conversationId
-      ? {
-          ...conversation,
-          unreadCount: 0
-        }
-      : conversation
-  )
-)
+      prev.map((conversation) =>
+        conversation.id === conversationId
+          ? {
+              ...conversation,
+              unreadCount: 0
+            }
+          : conversation
+      )
+    )
   }
 
   async function loadOlderMessages() {
@@ -493,10 +494,10 @@ export default function DashboardPage() {
 
             setConversations((prev) => {
               const result = applyRealtimeMessageToConversationList(
-  prev,
-  incomingMessage,
-  selectedConversationId
-)
+                prev,
+                incomingMessage,
+                selectedConversationId
+              )
               foundConversation = result.foundConversation
               return result.nextConversations
             })
@@ -581,10 +582,10 @@ export default function DashboardPage() {
     conversations.find((conversation) => conversation.id === selectedConversationId) ?? null
 
   const mobileLeadPhone = normalizePhoneForWhatsApp(lead?.phone)
-const mobileLeadPhoneFormatted = formatPhone(lead?.phone)
-const mobileLeadWhatsAppLink = mobileLeadPhone
-  ? `https://wa.me/${mobileLeadPhone}`
-  : null  
+  const mobileLeadPhoneFormatted = formatPhone(lead?.phone)
+  const mobileLeadWhatsAppLink = mobileLeadPhone
+    ? `https://wa.me/${mobileLeadPhone}`
+    : null
 
   async function handleSendMessage(payload: SendTextMessagePayload) {
     if (!selectedConversationId) return
@@ -600,6 +601,7 @@ const mobileLeadWhatsAppLink = mobileLeadPhone
       setErrorMessage(error instanceof Error ? error.message : 'Erro ao enviar mensagem')
     }
   }
+
   async function handleSendMediaMessage(payload: SendMediaMessagePayload) {
     if (!selectedConversationId) return
 
@@ -614,10 +616,11 @@ const mobileLeadWhatsAppLink = mobileLeadPhone
       setErrorMessage(error instanceof Error ? error.message : 'Erro ao enviar mídia')
     }
   }
+
   async function handleChangeMode(mode: ConversationMode) {
     if (!selectedConversationId) return
 
-    try { 
+    try {
       setChangingMode(true)
       setErrorMessage(null)
 
@@ -689,20 +692,20 @@ const mobileLeadWhatsAppLink = mobileLeadPhone
   }
 
   function handleSelectConversation(id: string) {
-  setSelectedConversationId(id)
-  setMobileView('chat')
+    setSelectedConversationId(id)
+    setMobileView('chat')
 
-  setConversations((prev) =>
-    prev.map((conversation) =>
-      conversation.id === id
-        ? {
-            ...conversation,
-            unreadCount: 0
-          }
-        : conversation
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === id
+          ? {
+              ...conversation,
+              unreadCount: 0
+            }
+          : conversation
+      )
     )
-  )
-}
+  }
 
   function handleBack() {
     setMobileView('list')
@@ -719,174 +722,197 @@ const mobileLeadWhatsAppLink = mobileLeadPhone
     )
   }
 
-  if (!selectedConversation) {
-    return (
-      <main className="flex h-screen bg-[#0b141a] text-white">
-        <div className="hidden h-full w-full md:grid md:grid-cols-[320px_1fr] xl:grid-cols-[320px_1fr_340px]">
-          <ConversationList
-            conversations={conversations}
-            selectedConversationId={selectedConversationId}
-            onSelectConversation={handleSelectConversation}
-            leadsMap={leadsMap}
-            currentUserRole={currentUserRole}
-            currentUserId={currentUserId}
-            onAssignConversation={handleAssignConversation}
-            assigningConversationId={assigningConversationId}
-          />
+  const desktopContent = !selectedConversation ? (
+    <div className="grid h-full grid-cols-[320px_1fr] xl:grid-cols-[320px_1fr_340px]">
+      <ConversationList
+        conversations={conversations}
+        selectedConversationId={selectedConversationId}
+        onSelectConversation={handleSelectConversation}
+        leadsMap={leadsMap}
+        currentUserRole={currentUserRole}
+        currentUserId={currentUserId}
+        onAssignConversation={handleAssignConversation}
+        assigningConversationId={assigningConversationId}
+      />
 
-          <section className="flex items-center justify-center border-l border-neutral-800">
-            <div className="rounded-2xl bg-[#111b21] px-6 py-4 text-sm text-neutral-400">
-              Sem conversa liberada para você.
-            </div>
-          </section>
-
-          <div className="hidden border-l border-neutral-800 xl:block" />
+      <section className="flex items-center justify-center border-l border-neutral-800">
+        <div className="rounded-2xl bg-[#111b21] px-6 py-4 text-sm text-neutral-400">
+          Sem conversa liberada para você.
         </div>
+      </section>
 
-        <div className="flex h-full w-full flex-col md:hidden">
-          <ConversationList
-            conversations={conversations}
-            selectedConversationId={selectedConversationId}
-            onSelectConversation={handleSelectConversation}
-            leadsMap={leadsMap}
-            currentUserRole={currentUserRole}
-            currentUserId={currentUserId}
-            onAssignConversation={handleAssignConversation}
-            assigningConversationId={assigningConversationId}
-          />
-        </div>
-      </main>
-    )
-  }
+      <div className="hidden border-l border-neutral-800 xl:block" />
+    </div>
+  ) : (
+    <div className="grid h-full grid-cols-[320px_1fr] xl:grid-cols-[320px_1fr_340px]">
+      <ConversationList
+        conversations={conversations}
+        selectedConversationId={selectedConversationId}
+        onSelectConversation={handleSelectConversation}
+        leadsMap={leadsMap}
+        currentUserRole={currentUserRole}
+        currentUserId={currentUserId}
+        onAssignConversation={handleAssignConversation}
+        assigningConversationId={assigningConversationId}
+      />
+
+      <ChatWindow
+        selectedConversation={selectedConversation}
+        messages={messages}
+        lead={lead}
+        currentUserId={currentUserId}
+        currentUserRole={currentUserRole}
+        users={users}
+        myPresence={myPresence}
+        updatingPresence={updatingPresence}
+        onUpdatePresence={handleUpdatePresence}
+        onSendMessage={handleSendMessage}
+        onSendMediaMessage={handleSendMediaMessage}
+        onChangeMode={handleChangeMode}
+        onAssignConversation={handleAssignConversation}
+        assigningConversation={assigningConversationId === selectedConversation.id}
+        changingMode={changingMode}
+        hasMoreMessages={hasMoreMessages}
+        loadingOlderMessages={loadingOlderMessages}
+        onLoadOlderMessages={loadOlderMessages}
+      />
+
+      <div className="hidden h-full xl:block">{lead ? <LeadSidebar lead={lead} /> : null}</div>
+    </div>
+  )
 
   return (
-    <main className="flex h-screen flex-col bg-[#0b141a] text-white">
-      <header className="flex items-center justify-between border-b border-neutral-800 px-4 py-2">
-        <div className="text-sm font-medium">FlyHub AI</div>
+    <>
+      <div className="hidden lg:block">
+        <AppShell
+          sidebar={
+            <AppSidebar
+              currentUserRole={currentUserRole}
+              currentUserName={currentUser?.name}
+              currentTenantName={currentUser?.tenantId}
+            />
+          }
+          topbar={
+            <AppTopbar
+              title="Atendimentos"
+              currentUserName={currentUser?.name}
+              currentUserRole={currentUserRole}
+              onLogout={handleLogout}
+            />
+          }
+        >
+          {(successMessage || errorMessage) && (
+            <div className="border-b border-neutral-800 px-4 py-3">
+              {successMessage && (
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+                  {successMessage}
+                </div>
+              )}
 
-        <div className="flex items-center gap-3 text-xs">
-          <span className="text-neutral-400">
-            {currentUser?.name} ({currentUser?.role})
-          </span>
-
-          <button
-            onClick={handleLogout}
-            className="rounded-md bg-red-600 px-3 py-1 hover:bg-red-700"
-          >
-            Sair
-          </button>
-        </div>
-      </header>
-
-      {(successMessage || errorMessage) && (
-        <div className="px-4 py-2">
-          {successMessage && (
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
-              {successMessage}
+              {errorMessage && (
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                  {errorMessage}
+                </div>
+              )}
             </div>
           )}
 
-          {errorMessage && (
-            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-              {errorMessage}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="hidden flex-1 md:grid md:grid-cols-[320px_1fr] xl:grid-cols-[320px_1fr_340px]">
-        <ConversationList
-          conversations={conversations}
-          selectedConversationId={selectedConversationId}
-          onSelectConversation={handleSelectConversation}
-          leadsMap={leadsMap}
-          currentUserRole={currentUserRole}
-          currentUserId={currentUserId}
-          onAssignConversation={handleAssignConversation}
-          assigningConversationId={assigningConversationId}
-        />
-
-        <ChatWindow
-          selectedConversation={selectedConversation}
-          messages={messages}
-          lead={lead}
-          currentUserId={currentUserId}
-          currentUserRole={currentUserRole}
-          users={users}
-          myPresence={myPresence}
-          updatingPresence={updatingPresence}
-          onUpdatePresence={handleUpdatePresence}
-          onSendMessage={handleSendMessage}
-          onSendMediaMessage={handleSendMediaMessage}
-          onChangeMode={handleChangeMode}
-          onAssignConversation={handleAssignConversation}
-          assigningConversation={assigningConversationId === selectedConversation.id}
-          changingMode={changingMode}
-          hasMoreMessages={hasMoreMessages}
-          loadingOlderMessages={loadingOlderMessages}
-          onLoadOlderMessages={loadOlderMessages}
-        />
-
-        <div className="hidden h-full xl:block">{lead ? <LeadSidebar lead={lead} /> : null}</div>
+          <div className="h-[calc(100vh-61px)]">{desktopContent}</div>
+        </AppShell>
       </div>
 
-      <div className="flex flex-1 flex-col md:hidden">
-        {mobileView === 'list' && (
-          <ConversationList
-            conversations={conversations}
-            selectedConversationId={selectedConversationId}
-            onSelectConversation={handleSelectConversation}
-            leadsMap={leadsMap}
-            currentUserRole={currentUserRole}
-            currentUserId={currentUserId}
-            onAssignConversation={handleAssignConversation}
-            assigningConversationId={assigningConversationId}
-          />
+      <main className="flex h-screen flex-col bg-[#0b141a] text-white lg:hidden">
+        <header className="flex items-center justify-between border-b border-neutral-800 px-4 py-2">
+          <div className="text-sm font-medium">FlyHub AI</div>
+
+          <div className="flex items-center gap-3 text-xs">
+            <span className="text-neutral-400">
+              {currentUser?.name} ({currentUser?.role})
+            </span>
+
+            <button
+              onClick={handleLogout}
+              className="rounded-md bg-red-600 px-3 py-1 hover:bg-red-700"
+            >
+              Sair
+            </button>
+          </div>
+        </header>
+
+        {(successMessage || errorMessage) && (
+          <div className="px-4 py-2">
+            {successMessage && (
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+                {successMessage}
+              </div>
+            )}
+
+            {errorMessage && (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                {errorMessage}
+              </div>
+            )}
+          </div>
         )}
 
-          {mobileView === 'chat' && (
-  <>
-    {lead && mobileLeadWhatsAppLink ? (
-      <div className="border-b border-neutral-800 bg-[#111b21] px-4 py-2 text-sm">
-        <div className="flex items-center justify-between">
-          <span className="text-neutral-400">Telefone:</span>
+        <div className="flex flex-1 flex-col">
+          {mobileView === 'list' && (
+            <ConversationList
+              conversations={conversations}
+              selectedConversationId={selectedConversationId}
+              onSelectConversation={handleSelectConversation}
+              leadsMap={leadsMap}
+              currentUserRole={currentUserRole}
+              currentUserId={currentUserId}
+              onAssignConversation={handleAssignConversation}
+              assigningConversationId={assigningConversationId}
+            />
+          )}
 
-          <a
-            href={mobileLeadWhatsAppLink}
-            target="_blank"
-            rel="noreferrer"
-            className="text-[#53bdeb] underline underline-offset-2"
-          >
-            {mobileLeadPhoneFormatted}
-          </a>
+          {mobileView === 'chat' && selectedConversation && (
+            <>
+              {lead && mobileLeadWhatsAppLink ? (
+                <div className="border-b border-neutral-800 bg-[#111b21] px-4 py-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-neutral-400">Telefone:</span>
+
+                    <a
+                      href={mobileLeadWhatsAppLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[#53bdeb] underline underline-offset-2"
+                    >
+                      {mobileLeadPhoneFormatted}
+                    </a>
+                  </div>
+                </div>
+              ) : null}
+
+              <ChatWindow
+                selectedConversation={selectedConversation}
+                messages={messages}
+                lead={lead}
+                currentUserId={currentUserId}
+                currentUserRole={currentUserRole}
+                users={users}
+                myPresence={myPresence}
+                updatingPresence={updatingPresence}
+                onUpdatePresence={handleUpdatePresence}
+                onBack={handleBack}
+                onSendMessage={handleSendMessage}
+                onSendMediaMessage={handleSendMediaMessage}
+                onChangeMode={handleChangeMode}
+                onAssignConversation={handleAssignConversation}
+                assigningConversation={assigningConversationId === selectedConversation.id}
+                changingMode={changingMode}
+                hasMoreMessages={hasMoreMessages}
+                loadingOlderMessages={loadingOlderMessages}
+                onLoadOlderMessages={loadOlderMessages}
+              />
+            </>
+          )}
         </div>
-      </div>
-    ) : null}
-
-    <ChatWindow
-      selectedConversation={selectedConversation}
-      messages={messages}
-      lead={lead}
-      currentUserId={currentUserId}
-      currentUserRole={currentUserRole}
-      users={users}
-      myPresence={myPresence}
-      updatingPresence={updatingPresence}
-      onUpdatePresence={handleUpdatePresence}
-      onBack={handleBack}
-      onSendMessage={handleSendMessage}
-      onSendMediaMessage={handleSendMediaMessage}
-      onChangeMode={handleChangeMode}
-      onAssignConversation={handleAssignConversation}
-      assigningConversation={assigningConversationId === selectedConversation.id}
-      changingMode={changingMode}
-      hasMoreMessages={hasMoreMessages}
-      loadingOlderMessages={loadingOlderMessages}
-      onLoadOlderMessages={loadOlderMessages}
-    />
-  </>
-)}
-      </div>
-    </main>
+      </main>
+    </>
   )
 }
