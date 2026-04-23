@@ -83,11 +83,13 @@ model User {
   messages              Message[]
   assignedConversations Conversation[] @relation("ConversationAssignedUser")
   managedConversations  Conversation[] @relation("ConversationManager")
-  managedCampaigns      Campaign[]     @relation("CampaignManager")
-  managedPhoneNumbers   PhoneNumber[]  @relation("PhoneNumberManager")
-  assignedByEvents      Assignment[]   @relation("AssignmentAssignedByUser")
-  createdTemplates      MessageTemplate[] @relation("MessageTemplateCreatedByUser")
-  createdBroadcasts     Broadcast[]       @relation("BroadcastCreatedByUser")
+  managedCampaigns          Campaign[]                   @relation("CampaignManager")
+  managedPhoneNumbers       PhoneNumber[]                @relation("PhoneNumberManager")
+  managedDistributionRules  CampaignDistributionRule[]
+  distributionMembers       CampaignDistributionMember[]
+  assignedByEvents          Assignment[]                 @relation("AssignmentAssignedByUser")
+  createdTemplates          MessageTemplate[]            @relation("MessageTemplateCreatedByUser")
+  createdBroadcasts         Broadcast[]                  @relation("BroadcastCreatedByUser")
 
   // 🔐 SESSÕES
   sessions Session[]
@@ -157,9 +159,10 @@ model Campaign {
   tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   phoneNumber     PhoneNumber @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
   manager         User?       @relation("CampaignManager", fields: [managerId], references: [id], onDelete: SetNull)
-  conversations   Conversation[]
-  initialSteps    CampaignInitialStep[]
-  followUpRules   CampaignFollowUpRule[]
+  conversations     Conversation[]
+  initialSteps      CampaignInitialStep[]
+  followUpRules     CampaignFollowUpRule[]
+  distributionRule  CampaignDistributionRule?
 
   @@index([tenantId, isActive])
   @@index([phoneNumberId, isActive])
@@ -209,6 +212,44 @@ model CampaignFollowUpRule {
   @@index([campaignId, triggerType, isActive])
 }
 
+model CampaignDistributionRule {
+  id                     String                   @id @default(cuid())
+  campaignId             String                   @unique
+  managerId              String
+  mode                   CampaignDistributionMode @default(ROUND_ROBIN)
+  isActive               Boolean                  @default(true)
+  reassignOnTimeout      Boolean                  @default(false)
+  responseTimeoutSeconds Int                      @default(300)
+  viewTimeoutSeconds     Int?
+  onlyBusinessHours      Boolean                  @default(false)
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+
+  campaign               Campaign                  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  manager                User                      @relation(fields: [managerId], references: [id], onDelete: Cascade)
+  members                CampaignDistributionMember[]
+
+  @@index([managerId, isActive])
+  @@index([mode, isActive])
+}
+
+model CampaignDistributionMember {
+  id         String   @id @default(cuid())
+  ruleId      String
+  userId      String
+  sortOrder   Int
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rule        CampaignDistributionRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([ruleId, userId])
+  @@unique([ruleId, sortOrder])
+  @@index([userId, isActive])
+}
+
 model Conversation {
   id              String             @id @default(cuid())
   tenantId        String
@@ -226,11 +267,16 @@ model Conversation {
   lastSeenAt      DateTime?
   lastInboundAt   DateTime?
   lastOutboundAt  DateTime?
-  waitingSince    DateTime?
-  assignedAt      DateTime?
-  firstResponseAt DateTime?
-  closedAt        DateTime?
-  metaThreadId             String?
+  waitingSince            DateTime?
+  assignedAt              DateTime?
+  firstResponseAt         DateTime?
+  closedAt                DateTime?
+  metaThreadId            String?
+
+  queueCurrentUserId      String?
+  queueStepStartedAt      DateTime?
+  queueStepExpiresAt      DateTime?
+  queueAttempt            Int      @default(0)
 
   automationKind           ConversationAutomationKind?
   automationStatus         ConversationAutomationStatus @default(IDLE)
@@ -270,6 +316,9 @@ model Conversation {
   @@index([managerId, updatedAt])
   @@index([tenantId, managerId, status, updatedAt])
   @@index([metaThreadId])
+  @@index([queueCurrentUserId])
+  @@index([queueStepExpiresAt])
+  @@index([tenantId, queueStepExpiresAt])
   @@index([automationStatus, nextAutomationAt])
   @@index([tenantId, automationStatus, nextAutomationAt])
   @@index([tenantId, mode, automationStatus, nextAutomationAt])
@@ -531,6 +580,13 @@ enum CampaignStepType {
 enum CampaignFollowUpTriggerType {
   AFTER_LAST_INBOUND
   AFTER_LAST_INTERACTION
+}
+
+enum CampaignDistributionMode {
+  ROUND_ROBIN
+  ORDERED_QUEUE
+  MANUAL_ONLY
+  QUEUE_WITH_TIMEOUT
 }
 
 enum ConversationAutomationKind {

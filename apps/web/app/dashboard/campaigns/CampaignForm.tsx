@@ -9,6 +9,8 @@ import {
   type CampaignInitialStepPayload,
   type CampaignStepType
 } from '@/lib/api'
+import CampaignDistributionForm from './CampaignDistributionForm'
+
 
 type CampaignFormProps = {
   campaign?: any
@@ -212,6 +214,8 @@ async function handleStepMediaSelected(
   }
 
   return (
+  <div className="space-y-6">
+
     <form onSubmit={handleSubmit} className="space-y-6 text-white">
       <div>
         <label className="block text-sm font-medium mb-1">Nome</label>
@@ -359,86 +363,59 @@ async function handleStepMediaSelected(
                       updateStep(index, 'content', e.target.value)
                     }
                     className="w-full p-2 bg-black rounded border border-neutral-700"
-                    placeholder={
-                      step.type === 'link'
-                        ? 'Conteúdo do link ou texto com link'
-                        : 'Conteúdo do texto'
-                    }
                   />
                 </div>
               ) : (
                 <div className="space-y-3">
-  <div className="text-sm text-neutral-400">
-    Selecione o arquivo da mídia deste step. O sistema vai subir o arquivo
-    e preencher os dados automaticamente.
-  </div>
+                  <input
+                    type="file"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      void handleStepMediaSelected(index, file)
+                      e.currentTarget.value = ''
+                    }}
+                    className="w-full p-2 bg-black rounded border border-neutral-700"
+                    disabled={saving || uploadingStepIndex === index}
+                  />
 
-  <input
-    type="file"
-    onChange={(e) => {
-      const file = e.target.files?.[0]
-      if (!file) return
-      void handleStepMediaSelected(index, file)
-      e.currentTarget.value = ''
-    }}
-    className="w-full p-2 bg-black rounded border border-neutral-700"
-    disabled={saving || uploadingStepIndex === index}
-  />
+                  {uploadingStepIndex === index && (
+                    <div className="text-sm text-blue-400">
+                      Enviando mídia...
+                    </div>
+                  )}
 
-  {uploadingStepIndex === index && (
-    <div className="text-sm text-blue-400">
-      Enviando mídia...
-    </div>
-  )}
+                  {!!step.fileName && (
+                    <div className="text-sm">{step.fileName}</div>
+                  )}
 
-  {!!step.fileName && (
-    <div className="rounded border border-neutral-700 bg-neutral-900 p-3 text-sm space-y-1">
-      <div>
-        <span className="text-neutral-400">Arquivo:</span>{' '}
-        <span className="text-white">{step.fileName}</span>
-      </div>
-
-      {!!step.mimeType && (
-        <div>
-          <span className="text-neutral-400">Mime:</span>{' '}
-          <span className="text-white">{step.mimeType}</span>
-        </div>
-      )}
-
-      {!!step.mediaUrl && (
-        <div className="break-all">
-          <span className="text-neutral-400">URL:</span>{' '}
-          <span className="text-white">{step.mediaUrl}</span>
-        </div>
-      )}
-    </div>
-  )}
-
-  <button
-    type="button"
-    onClick={() => {
-      const updated = [...steps]
-      updated[index] = {
-        ...updated[index],
-        mediaUrl: '',
-        storageKey: '',
-        mimeType: '',
-        fileName: ''
-      }
-      setSteps(updated)
-    }}
-    className="text-sm text-red-400"
-  >
-    Limpar mídia
-  </button>
-</div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = [...steps]
+                      updated[index] = {
+                        ...updated[index],
+                        mediaUrl: '',
+                        storageKey: '',
+                        mimeType: '',
+                        fileName: ''
+                      }
+                      setSteps(updated)
+                    }}
+                    className="text-sm text-red-400"
+                  >
+                    Limpar mídia
+                  </button>
+                </div>
               )}
 
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
                   checked={step.isActive ?? true}
-                  onChange={(e) => updateStep(index, 'isActive', e.target.checked)}
+                  onChange={(e) =>
+                    updateStep(index, 'isActive', e.target.checked)
+                  }
                 />
                 Step ativo
               </label>
@@ -480,5 +457,13 @@ async function handleStepMediaSelected(
         {saving ? 'Salvando...' : campaign?.id ? 'Salvar alterações' : 'Criar campanha'}
       </button>
     </form>
-  )
+
+    {campaign?.id && (
+      <div className="mt-6 border-t border-neutral-700 pt-6">
+        <CampaignDistributionForm campaignId={campaign.id} />
+      </div>
+    )}
+
+  </div>
+)
 }

@@ -539,3 +539,30 @@ export async function updateUserStatus(
 
   return res.json()
 }
+
+export async function getCampaignDistribution(id: string) {
+  const res = await apiFetch(`${API_BASE_URL}/campaigns/${id}/distribution`, {
+    cache: 'no-store'
+  })
+
+  if (!res.ok) {
+    if (res.status === 404) return null
+    throw await parseApiError(res, 'Erro ao buscar distribuição')
+  }
+
+  return res.json()
+}
+
+export async function updateCampaignDistribution(id: string, data: any) {
+  const res = await apiFetch(`${API_BASE_URL}/campaigns/${id}/distribution`, {
+    method: 'PATCH',
+    body: JSON.stringify(data)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao salvar distribuição')
+  }
+
+  return res.json()
+}
+

@@ -35,9 +35,9 @@ function managerItems() {
 function adminItems() {
   return [
     {
-  title: 'Usuários',
-  description: 'Cadastrar managers e atendentes da operação.'
-},
+      title: 'Usuários',
+      description: 'Cadastrar managers e atendentes da operação.'
+    },
     {
       title: 'Números',
       description: 'Gerenciar linhas, perfis, status e vínculo com managers.'
@@ -137,29 +137,87 @@ export default function DashboardSettingsPage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {items.map((item) => (
-            <div
-              key={item.title}
-              className="rounded-2xl border border-neutral-800 bg-[#111b21] p-5"
-            >
-              <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-              <p className="mt-2 text-sm text-neutral-400">{item.description}</p>
-              <div className="mt-4 text-xs text-emerald-300">Base visual preparada</div>
-            </div>
-          ))}
+          {items.map((item) => {
+            if (item.title === 'Distribuição') {
+              return (
+                <div
+                  key={item.title}
+                  className="rounded-2xl border border-neutral-800 bg-[#111b21] p-5"
+                >
+                  <h3 className="text-lg font-semibold text-white">{item.title}</h3>
+                  <p className="mt-2 text-sm text-neutral-400">{item.description}</p>
+                  <div className="mt-4 text-xs text-emerald-300">
+                    Configurar agora
+                  </div>
+                </div>
+              )
+            }
+
+            if (item.title === 'Campanhas') {
+              return (
+                <div
+                  key={item.title}
+                  className="rounded-2xl border border-neutral-800 bg-[#111b21] p-5"
+                >
+                  <h3 className="text-lg font-semibold text-white">{item.title}</h3>
+                  <p className="mt-2 text-sm text-neutral-400">{item.description}</p>
+                  <div className="mt-4 text-xs text-emerald-300">
+                    Configurar agora
+                  </div>
+                </div>
+              )
+            }
+
+            return (
+              <div
+                key={item.title}
+                className="rounded-2xl border border-neutral-800 bg-[#111b21] p-5"
+              >
+                <h3 className="text-lg font-semibold text-white">{item.title}</h3>
+                <p className="mt-2 text-sm text-neutral-400">{item.description}</p>
+                <div className="mt-4 text-xs text-emerald-300">
+                  Base visual preparada
+                </div>
+              </div>
+            )
+          })}
         </div>
 
-<div className="mt-6 flex flex-wrap gap-3">
-  {currentUser.role === 'admin' && (
-    <a
-      href="/dashboard/settings/users"
-      className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700"
-    >
-      Abrir gestão de usuários
-    </a>
-  )}
-</div>
+        <div className="mt-6 flex flex-wrap gap-3">
+          {currentUser.role === 'admin' && (
+            <>
+              <a
+                href="/dashboard/settings/users"
+                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700"
+              >
+                Abrir gestão de usuários
+              </a>
 
+              <a
+                href="/dashboard/campaigns"
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+              >
+                Abrir campanhas
+              </a>
+
+              <a
+                href="/dashboard/settings/distribution?campaignId=SEED"
+                className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-800"
+              >
+                Abrir distribuição
+              </a>
+            </>
+          )}
+
+          {currentUser.role === 'manager' && (
+            <a
+              href="/dashboard/settings/distribution"
+              className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-800"
+            >
+              Abrir distribuição
+            </a>
+          )}
+        </div>
       </div>
     </AppShell>
   )

@@ -18,7 +18,13 @@ export async function autoAssignConversation(input: AutoAssignInput) {
     },
     include: {
       assignedUser: true,
-      phoneNumber: true
+      phoneNumber: true,
+      campaign: {
+        select: {
+          id: true,
+          managerId: true
+        }
+      }
     }
   })
 
@@ -35,18 +41,54 @@ export async function autoAssignConversation(input: AutoAssignInput) {
     }
   }
 
-    const users = await prisma.user.findMany({
+  const effectiveManagerId =
+    conversation.managerId ?? conversation.campaign?.managerId ?? null
+
+  const distributionRule = conversation.campaignId
+    ? await prisma.campaignDistributionRule.findFirst({
+        where: {
+          campaignId: conversation.campaignId,
+          isActive: true
+        },
+        include: {
+          members: {
+            where: {
+              isActive: true
+            },
+            orderBy: {
+              sortOrder: 'asc'
+            },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  role: true,
+                  tenantId: true,
+                  isActive: true,
+                  presenceStatus: true,
+                  managerId: true
+                }
+              }
+            }
+          }
+        }
+      })
+    : null
+
+  const scopedUsers = await prisma.user.findMany({
     where: {
       tenantId,
       isActive: true,
-      ...(conversation.managerId
+      ...(effectiveManagerId
         ? {
             OR: [
               {
-                id: conversation.managerId
+                id: effectiveManagerId
               },
               {
-                managerId: conversation.managerId
+                managerId: effectiveManagerId
               }
             ]
           }
@@ -59,46 +101,114 @@ export async function autoAssignConversation(input: AutoAssignInput) {
       role: true,
       tenantId: true,
       isActive: true,
-      presenceStatus: true
+      presenceStatus: true,
+      managerId: true
     },
     orderBy: [{ role: 'asc' }, { name: 'asc' }]
   })
 
- const eligibleUsers = getEligibleAssignableUsers(users)
+  let targetUser: {
+    id: string
+    userId?: string
+  } | null = null
 
-let targetUser = null
+  if (distributionRule && distributionRule.members.length > 0) {
+    const eligibleScopedUsers = getEligibleAssignableUsers(scopedUsers)
 
-if (eligibleUsers.length > 0) {
-  const lastAssignments = await prisma.assignment.groupBy({
-    by: ['userId'],
-    where: {
-      userId: {
-        in: eligibleUsers.map((u) => u.id)
+    const validMembers = distributionRule.members.filter((member) =>
+      eligibleScopedUsers.some((user) => user.id === member.userId)
+    )
+
+    if (distributionRule.mode === 'MANUAL_ONLY') {
+      return {
+        conversation,
+        assignedUserId: null,
+        skipped: true,
+        reason: 'Manual distribution only'
       }
-    },
-    _max: {
-      assignedAt: true
     }
-  })
 
-  const lastAssignmentMap = new Map(
-    lastAssignments.map((a) => [a.userId, a._max.assignedAt])
-  )
+    if (distributionRule.mode === 'ORDERED_QUEUE' && validMembers.length > 0) {
+      targetUser = {
+        id: validMembers[0].userId,
+        userId: validMembers[0].userId
+      }
+    }
 
-  const sortedUsers = [...eligibleUsers].sort((a, b) => {
-    const aLast = lastAssignmentMap.get(a.id)
-    const bLast = lastAssignmentMap.get(b.id)
+    if (distributionRule.mode === 'ROUND_ROBIN' && validMembers.length > 0) {
+      const lastAssignments = await prisma.assignment.groupBy({
+        by: ['userId'],
+        where: {
+          userId: {
+            in: validMembers.map((member) => member.userId)
+          }
+        },
+        _max: {
+          assignedAt: true
+        }
+      })
 
-    // quem nunca recebeu vem primeiro
-    if (!aLast && !bLast) return 0
-    if (!aLast) return -1
-    if (!bLast) return 1
+      const lastAssignmentMap = new Map(
+        lastAssignments.map((item) => [item.userId, item._max.assignedAt])
+      )
 
-    return aLast.getTime() - bLast.getTime()
-  })
+      const sortedMembers = [...validMembers].sort((a, b) => {
+        const aLast = lastAssignmentMap.get(a.userId)
+        const bLast = lastAssignmentMap.get(b.userId)
 
-  targetUser = sortedUsers[0] ?? null
-}
+        if (!aLast && !bLast) {
+          return a.sortOrder - b.sortOrder
+        }
+
+        if (!aLast) return -1
+        if (!bLast) return 1
+
+        return aLast.getTime() - bLast.getTime()
+      })
+
+      targetUser = {
+        id: sortedMembers[0].userId,
+        userId: sortedMembers[0].userId
+      }
+    }
+  }
+
+  if (!targetUser) {
+    const eligibleUsers = getEligibleAssignableUsers(scopedUsers)
+
+    if (eligibleUsers.length > 0) {
+      const lastAssignments = await prisma.assignment.groupBy({
+        by: ['userId'],
+        where: {
+          userId: {
+            in: eligibleUsers.map((user) => user.id)
+          }
+        },
+        _max: {
+          assignedAt: true
+        }
+      })
+
+      const lastAssignmentMap = new Map(
+        lastAssignments.map((item) => [item.userId, item._max.assignedAt])
+      )
+
+      const sortedUsers = [...eligibleUsers].sort((a, b) => {
+        const aLast = lastAssignmentMap.get(a.id)
+        const bLast = lastAssignmentMap.get(b.id)
+
+        if (!aLast && !bLast) return 0
+        if (!aLast) return -1
+        if (!bLast) return 1
+
+        return aLast.getTime() - bLast.getTime()
+      })
+
+      targetUser = {
+        id: sortedUsers[0].id
+      }
+    }
+  }
 
   if (!targetUser) {
     return {
@@ -109,6 +219,7 @@ if (eligibleUsers.length > 0) {
     }
   }
 
+  const targetUserId = targetUser.userId ?? targetUser.id
   const now = new Date()
 
   const updatedConversation = await prisma.$transaction(async (tx) => {
@@ -140,9 +251,14 @@ if (eligibleUsers.length > 0) {
         id: conversation.id
       },
       data: {
-        assignedUserId: targetUser.id,
+        assignedUserId: targetUserId,
         assignedAt: now,
-        waitingSince: null
+        waitingSince: null,
+        ...(conversation.managerId
+          ? {}
+          : effectiveManagerId
+            ? { managerId: effectiveManagerId }
+            : {})
       },
       include: {
         assignedUser: true,
@@ -153,7 +269,7 @@ if (eligibleUsers.length > 0) {
     await tx.assignment.create({
       data: {
         conversationId: conversation.id,
-        userId: targetUser.id,
+        userId: targetUserId,
         assignedByUserId,
         assignedAt: now,
         reason: reason ?? 'Auto assignment'
@@ -165,7 +281,7 @@ if (eligibleUsers.length > 0) {
 
   return {
     conversation: updatedConversation,
-    assignedUserId: targetUser.id,
+    assignedUserId: targetUserId,
     skipped: false,
     reason: null
   }
