@@ -510,39 +510,41 @@ export default function DashboardPage() {
           }
 
           if (
-            (parsed.type === 'conversation:mode_changed' ||
-              parsed.type === 'conversation:assigned') &&
-            parsed.payload
-          ) {
-            const payload = parsed.payload
+  (parsed.type === 'conversation:mode_changed' ||
+    parsed.type === 'conversation:assigned') &&
+  parsed.payload
+) {
+  const payload = parsed.payload
 
-            let shouldReload = false
+  let shouldReload = false
 
-            setConversations((prev) => {
-              const result = applyConversationRealtimeUpdate(prev, payload, currentUser)
-              shouldReload = result.shouldReload
-              return result.nextConversations
-            })
+  setConversations((prev) => {
+    const result = applyConversationRealtimeUpdate(prev, payload, currentUser)
+    shouldReload = result.shouldReload
+    return result.nextConversations
+  })
 
-            if (shouldReload) {
-              await loadConversations()
-            }
+  if (currentUser.role === 'manager' && parsed.type === 'conversation:assigned') {
+    await loadConversations()
+  } else if (shouldReload) {
+    await loadConversations()
+  }
 
-            if (payload.id === selectedConversationId) {
-              const shouldKeepSelected =
-                currentUser.role === 'master' ||
-                currentUser.role === 'admin' ||
-                currentUser.role === 'manager' ||
-                !payload.assignedUser ||
-                payload.assignedUser.id === currentUser.id
+  if (payload.id === selectedConversationId) {
+    const shouldKeepSelected =
+      currentUser.role === 'master' ||
+      currentUser.role === 'admin' ||
+      currentUser.role === 'manager' ||
+      !payload.assignedUser ||
+      payload.assignedUser.id === currentUser.id
 
-              if (shouldKeepSelected) {
-                await loadConversationDetails(payload.id)
-              }
-            }
+    if (shouldKeepSelected) {
+      await loadConversationDetails(payload.id)
+    }
+  }
 
-            return
-          }
+  return
+}
 
           if (parsed.type === 'connected') {
             console.log('Realtime conectado:', parsed)

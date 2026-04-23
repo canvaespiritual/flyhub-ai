@@ -152,6 +152,16 @@ export default function CampaignDistributionForm({
         user.managerId === campaign.managerId
     )
   }, [allUsers, campaign])
+  useEffect(() => {
+  if (managerAgents.length === 0) {
+    setSelectedAgentIds([])
+    return
+  }
+
+  const validAgentIds = new Set(managerAgents.map((agent) => agent.id))
+
+  setSelectedAgentIds((prev) => prev.filter((id) => validAgentIds.has(id)))
+}, [managerAgents])
 
   const usesTimeoutQueue = mode === 'QUEUE_WITH_TIMEOUT'
   const requiresMembers = mode !== 'MANUAL_ONLY'
@@ -209,15 +219,25 @@ export default function CampaignDistributionForm({
         return
       }
 
-      await updateCampaignDistribution(campaignId, {
-        mode,
-        reassignOnTimeout: usesTimeoutQueue ? reassignOnTimeout : false,
-        responseTimeoutSeconds: usesTimeoutQueue ? responseTimeoutSeconds : 300,
-        members: selectedAgentIds.map((userId, index) => ({
-          userId,
-          sortOrder: index + 1
-        }))
-      })
+      const validAgentIds = new Set(managerAgents.map((agent) => agent.id))
+const sanitizedSelectedAgentIds = selectedAgentIds.filter((id) =>
+  validAgentIds.has(id)
+)
+
+if (requiresMembers && sanitizedSelectedAgentIds.length === 0) {
+  setError('Selecione pelo menos um atendente válido para essa distribuição.')
+  return
+}
+
+await updateCampaignDistribution(campaignId, {
+  mode,
+  reassignOnTimeout: usesTimeoutQueue ? reassignOnTimeout : false,
+  responseTimeoutSeconds: usesTimeoutQueue ? responseTimeoutSeconds : 300,
+  members: sanitizedSelectedAgentIds.map((userId, index) => ({
+    userId,
+    sortOrder: index + 1
+  }))
+})
 
       setSuccess('Distribuição salva com sucesso.')
       await load()
