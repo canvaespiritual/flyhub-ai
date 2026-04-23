@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Conversation, ConversationMode, Lead, Message, UserRole } from '@flyhub/shared'
 import { ChatWindow } from '@/components/dashboard/ChatWindow'
 import { ConversationList } from '@/components/dashboard/ConversationList'
@@ -87,15 +87,22 @@ type RealtimeEvent =
       payload?: unknown
     }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
+const API_BASE_URL =
+  process.env.NODE_ENV === 'production'
+    ? '/api-proxy'
+    : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
 const INITIAL_MESSAGES_LIMIT = 20
 
 function getWebSocketUrl() {
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${protocol}//${window.location.host}/api-proxy/realtime`
+  }
+
   const apiUrl = new URL(API_BASE_URL)
   const protocol = apiUrl.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${protocol}//${apiUrl.host}/api/realtime`
 }
-
 function sortConversationList(conversations: Conversation[]) {
   return [...conversations].sort((a, b) => {
     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
@@ -273,6 +280,16 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const selectedConversationIdRef = useRef<string | null>(null)
+const currentUserRef = useRef<CurrentUser | null>(null)
+
+useEffect(() => {
+  selectedConversationIdRef.current = selectedConversationId
+}, [selectedConversationId])
+
+useEffect(() => {
+  currentUserRef.current = currentUser
+}, [currentUser])
 
   function handleLogout() {
     logout().finally(() => {
@@ -482,16 +499,19 @@ export default function DashboardPage() {
       socket.onmessage = async (event) => {
         try {
           const parsed = JSON.parse(event.data) as RealtimeEvent
-           console.log('[REALTIME_EVENT]', {
-      currentUserRole: currentUser?.role,
-      currentUserId: currentUser?.id,
-      type: parsed.type,
-      payload: parsed.payload
-    })
+          const activeCurrentUser = currentUserRef.current
+const activeSelectedConversationId = selectedConversationIdRef.current
+
+console.log('[REALTIME_EVENT]', {
+  currentUserRole: activeCurrentUser?.role,
+  currentUserId: activeCurrentUser?.id,
+  type: parsed.type,
+  payload: parsed.payload
+})
           if (parsed.type === 'message:new' && parsed.payload) {
             const incomingMessage = parsed.payload
 
-            if (incomingMessage.conversationId === selectedConversationId) {
+            if (incomingMessage.conversationId === selectedConversationIdRef.current) {
               upsertMessage(incomingMessage)
             }
 
@@ -501,7 +521,7 @@ export default function DashboardPage() {
               const result = applyRealtimeMessageToConversationList(
                 prev,
                 incomingMessage,
-                selectedConversationId
+                selectedConversationIdRef.current
               )
               foundConversation = result.foundConversation
               return result.nextConversations
@@ -520,28 +540,33 @@ export default function DashboardPage() {
   parsed.payload
 ) {
   const payload = parsed.payload
+  const activeCurrentUser = currentUserRef.current
+  const activeSelectedConversationId = selectedConversationIdRef.current
 
   let shouldReload = false
 
   setConversations((prev) => {
-    const result = applyConversationRealtimeUpdate(prev, payload, currentUser)
+    const result = applyConversationRealtimeUpdate(prev, payload, activeCurrentUser)
     shouldReload = result.shouldReload
     return result.nextConversations
   })
 
-  if (currentUser.role === 'manager' && parsed.type === 'conversation:assigned') {
+  if (
+    activeCurrentUser?.role === 'manager' &&
+    parsed.type === 'conversation:assigned'
+  ) {
     await loadConversations()
   } else if (shouldReload) {
     await loadConversations()
   }
 
-  if (payload.id === selectedConversationId) {
+  if (payload.id === activeSelectedConversationId) {
     const shouldKeepSelected =
-      currentUser.role === 'master' ||
-      currentUser.role === 'admin' ||
-      currentUser.role === 'manager' ||
+      activeCurrentUser?.role === 'master' ||
+      activeCurrentUser?.role === 'admin' ||
+      activeCurrentUser?.role === 'manager' ||
       !payload.assignedUser ||
-      payload.assignedUser.id === currentUser.id
+      payload.assignedUser.id === activeCurrentUser?.id
 
     if (shouldKeepSelected) {
       await loadConversationDetails(payload.id)
@@ -594,7 +619,7 @@ export default function DashboardPage() {
 
       socket?.close()
     }
-  }, [currentUser, selectedConversationId])
+    }, [currentUser?.id])
 
   const selectedConversation =
     conversations.find((conversation) => conversation.id === selectedConversationId) ?? null
