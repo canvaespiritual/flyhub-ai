@@ -554,160 +554,168 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
             )
 
             const baseData = await prisma.$transaction(async (tx) => {
-              const contact = await tx.contact.upsert({
-                where: {
-                  tenantId_phone: {
-                    tenantId,
-                    phone: inboundFrom
-                  }
-                },
-                update: {
-                  name: inboundProfileName || inboundFrom,
-                  phoneRaw: inbound.from ?? inboundFrom
-                },
-                create: {
-                  tenantId,
-                  name: inboundProfileName || inboundFrom,
-                  phone: inboundFrom,
-                  phoneRaw: inbound.from ?? inboundFrom
-                }
-              })
-              let isNewConversation = false
-              let conversation = await tx.conversation.findFirst({
-  where: {
-    tenantId,
-    contactId: contact.id,
-    status: {
-      in: ['OPEN', 'PENDING']
+  const contact = await tx.contact.upsert({
+    where: {
+      tenantId_phone: {
+        tenantId,
+        phone: inboundFrom
+      }
+    },
+    update: {
+      name: inboundProfileName || inboundFrom,
+      phoneRaw: inbound.from ?? inboundFrom
+    },
+    create: {
+      tenantId,
+      name: inboundProfileName || inboundFrom,
+      phone: inboundFrom,
+      phoneRaw: inbound.from ?? inboundFrom
     }
-  },
-  orderBy: {
-    updatedAt: 'desc'
-  },
-  include: {
-    assignedUser: true,
-    phoneNumber: true,
-    campaign: {
-      select: {
-        id: true,
-        name: true
+  })
+
+  let isNewConversation = false
+
+  let conversation = await tx.conversation.findFirst({
+    where: {
+      tenantId,
+      contactId: contact.id,
+      status: {
+        in: ['OPEN', 'PENDING']
+      }
+    },
+    orderBy: {
+      updatedAt: 'desc'
+    },
+    include: {
+      assignedUser: true,
+      phoneNumber: true,
+      campaign: {
+        select: {
+          id: true,
+          name: true
+        }
       }
     }
-  }
-})
+  })
 
-              if (!conversation) {
-                isNewConversation = true
+  if (!conversation) {
+    isNewConversation = true
 
-                  conversation = await tx.conversation.create({
-                  data: {
-                    tenantId,
-                    contactId: contact.id,
-                    phoneNumberId: phoneNumber.id,
-                    campaignId: resolvedCampaign?.id ?? null,
-                    managerId: resolvedCampaign?.managerId ?? null,
-                    channel: 'WHATSAPP',
-                    mode: 'AI',
-                    status: 'OPEN',
-                    priority: 'NORMAL',
-                    waitingSince: inboundAt,
-                    lastMessageAt: inboundAt,
-                    lastInboundAt: inboundAt
-                  },
-                  include: {
-                    assignedUser: true,
-                    phoneNumber: true
-                  }
-                })
-              } else {
-                const previousCampaignId = conversation.campaignId ?? null
-const previousCampaignName = conversation.campaign?.name ?? null
-const incomingCampaignId = resolvedCampaign?.id ?? null
-const incomingCampaignName = resolvedCampaign?.name ?? null
-const previousPhoneNumberId = conversation.phoneNumberId
-const incomingPhoneNumberId = phoneNumber.id
-
-conversation = await tx.conversation.update({
-  where: {
-    id: conversation.id
-  },
-  data: {
-    status:
-      conversation.status === 'CLOSED'
-        ? 'OPEN'
-        : conversation.status,
-    waitingSince: conversation.assignedUserId
-      ? conversation.waitingSince
-      : inboundAt,
-    lastMessageAt: inboundAt,
-    lastInboundAt: inboundAt,
-    campaignId: conversation.campaignId ?? incomingCampaignId,
-    managerId: conversation.managerId ?? resolvedCampaign?.managerId ?? null
-  },
-  include: {
-    assignedUser: true,
-    phoneNumber: true,
-    campaign: {
-      select: {
-        id: true,
-        name: true
+    conversation = await tx.conversation.create({
+      data: {
+        tenantId,
+        contactId: contact.id,
+        phoneNumberId: phoneNumber.id,
+        campaignId: resolvedCampaign?.id ?? null,
+        managerId: resolvedCampaign?.managerId ?? null,
+        channel: 'WHATSAPP',
+        mode: 'AI',
+        status: 'OPEN',
+        priority: 'NORMAL',
+        waitingSince: inboundAt,
+        lastMessageAt: inboundAt,
+        lastInboundAt: inboundAt
+      },
+      include: {
+        assignedUser: true,
+        phoneNumber: true,
+        campaign: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
       }
+    })
+  } else {
+    const previousCampaignId = conversation.campaignId ?? null
+    const previousCampaignName = conversation.campaign?.name ?? null
+    const incomingCampaignId = resolvedCampaign?.id ?? null
+    const incomingCampaignName = resolvedCampaign?.name ?? null
+    const previousPhoneNumberId = conversation.phoneNumberId
+    const incomingPhoneNumberId = phoneNumber.id
+
+    conversation = await tx.conversation.update({
+      where: {
+        id: conversation.id
+      },
+      data: {
+        status:
+          conversation.status === 'CLOSED'
+            ? 'OPEN'
+            : conversation.status,
+        waitingSince: conversation.assignedUserId
+          ? conversation.waitingSince
+          : inboundAt,
+        lastMessageAt: inboundAt,
+        lastInboundAt: inboundAt,
+        campaignId: conversation.campaignId ?? incomingCampaignId,
+        managerId: conversation.managerId ?? resolvedCampaign?.managerId ?? null
+      },
+      include: {
+        assignedUser: true,
+        phoneNumber: true,
+        campaign: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    })
+
+    if (
+      incomingCampaignId &&
+      previousCampaignId &&
+      incomingCampaignId !== previousCampaignId
+    ) {
+      await tx.message.create({
+        data: {
+          conversationId: conversation.id,
+          senderType: 'SYSTEM',
+          direction: 'INBOUND',
+          type: 'TEXT',
+          status: 'DELIVERED',
+          provider: 'INTERNAL',
+          content: `Lead reentrou por outra campanha. Campanha atual da conversa: ${previousCampaignName ?? previousCampaignId}. Nova origem detectada: ${incomingCampaignName ?? incomingCampaignId}. Atendimento mantido com o responsável original.`
+        }
+      })
+    }
+
+    if (!previousCampaignId && incomingCampaignId) {
+      await tx.message.create({
+        data: {
+          conversationId: conversation.id,
+          senderType: 'SYSTEM',
+          direction: 'INBOUND',
+          type: 'TEXT',
+          status: 'DELIVERED',
+          provider: 'INTERNAL',
+          content: `Lead entrou com campanha identificada posteriormente: ${incomingCampaignName ?? incomingCampaignId}. Conversa existente foi mantida.`
+        }
+      })
+    }
+
+    if (previousPhoneNumberId !== incomingPhoneNumberId) {
+      await tx.message.create({
+        data: {
+          conversationId: conversation.id,
+          senderType: 'SYSTEM',
+          direction: 'INBOUND',
+          type: 'TEXT',
+          status: 'DELIVERED',
+          provider: 'INTERNAL',
+          content: `Lead voltou a entrar por outro número da operação. Conversa ativa existente foi reutilizada para evitar atendimento duplicado.`
+        }
+      })
     }
   }
+
+  return {
+    conversation: conversation!,
+    isNewConversation
+  }
 })
-
-if (
-  incomingCampaignId &&
-  previousCampaignId &&
-  incomingCampaignId !== previousCampaignId
-) {
-  await tx.message.create({
-    data: {
-      conversationId: conversation.id,
-      senderType: 'SYSTEM',
-      direction: 'INBOUND',
-      type: 'TEXT',
-      status: 'DELIVERED',
-      provider: 'INTERNAL',
-      content: `Lead reentrou por outra campanha. Campanha atual da conversa: ${previousCampaignName ?? previousCampaignId}. Nova origem detectada: ${incomingCampaignName ?? incomingCampaignId}. Atendimento mantido com o responsável original.`
-    }
-  })
-}
-
-if (!previousCampaignId && incomingCampaignId) {
-  await tx.message.create({
-    data: {
-      conversationId: conversation.id,
-      senderType: 'SYSTEM',
-      direction: 'INBOUND',
-      type: 'TEXT',
-      status: 'DELIVERED',
-      provider: 'INTERNAL',
-      content: `Lead entrou com campanha identificada posteriormente: ${incomingCampaignName ?? incomingCampaignId}. Conversa existente foi mantida.`
-    }
-  })
-}
-
-if (previousPhoneNumberId !== incomingPhoneNumberId) {
-  await tx.message.create({
-    data: {
-      conversationId: conversation.id,
-      senderType: 'SYSTEM',
-      direction: 'INBOUND',
-      type: 'TEXT',
-      status: 'DELIVERED',
-      provider: 'INTERNAL',
-      content: `Lead voltou a entrar por outro número da operação. Conversa ativa existente foi reutilizada para evitar atendimento duplicado.`
-    }
-  })
-}
-              }
-
-              return {
-  conversation,
-  isNewConversation
-}
-            })
 
             let uploadedMediaUrl: string | null = null
             let uploadedStorageKey: string | null = null
