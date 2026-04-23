@@ -482,7 +482,12 @@ export default function DashboardPage() {
       socket.onmessage = async (event) => {
         try {
           const parsed = JSON.parse(event.data) as RealtimeEvent
-
+           console.log('[REALTIME_EVENT]', {
+      currentUserRole: currentUser?.role,
+      currentUserId: currentUser?.id,
+      type: parsed.type,
+      payload: parsed.payload
+    })
           if (parsed.type === 'message:new' && parsed.payload) {
             const incomingMessage = parsed.payload
 
@@ -555,16 +560,27 @@ export default function DashboardPage() {
       }
 
       socket.onerror = (error) => {
-        console.error('Erro na conexão websocket realtime:', error)
-      }
+  console.error('[REALTIME_ERROR]', {
+    currentUserRole: currentUser?.role,
+    currentUserId: currentUser?.id,
+    error
+  })
+}
 
-      socket.onclose = () => {
-        if (isUnmounted) return
+      socket.onclose = (event) => {
+  console.warn('[REALTIME_CLOSED]', {
+    currentUserRole: currentUser?.role,
+    currentUserId: currentUser?.id,
+    code: event.code,
+    reason: event.reason
+  })
 
-        reconnectTimeout = setTimeout(() => {
-          connect()
-        }, 2000)
-      }
+  if (isUnmounted) return
+
+  reconnectTimeout = setTimeout(() => {
+    connect()
+  }, 2000)
+}
     }
 
     connect()
