@@ -8,6 +8,26 @@ type AutoAssignInput = {
   reason?: string
 }
 
+/**
+ * 🔥 valida turno
+ */
+function isUserInShift(member: any, now: Date) {
+  if (!member.shiftStartHour || !member.shiftEndHour || !member.shiftDays?.length) {
+    return true
+  }
+
+  const day = now.getDay()
+  const hour = now.getHours()
+
+  if (!member.shiftDays.includes(day)) return false
+
+  if (member.shiftStartHour <= member.shiftEndHour) {
+    return hour >= member.shiftStartHour && hour < member.shiftEndHour
+  }
+
+  return hour >= member.shiftStartHour || hour < member.shiftEndHour
+}
+
 export async function autoAssignConversation(input: AutoAssignInput) {
   const { tenantId, conversationId, assignedByUserId = null, reason } = input
 
@@ -84,12 +104,8 @@ export async function autoAssignConversation(input: AutoAssignInput) {
       ...(effectiveManagerId
         ? {
             OR: [
-              {
-                id: effectiveManagerId
-              },
-              {
-                managerId: effectiveManagerId
-              }
+              { id: effectiveManagerId },
+              { managerId: effectiveManagerId }
             ]
           }
         : {})
@@ -107,17 +123,23 @@ export async function autoAssignConversation(input: AutoAssignInput) {
     orderBy: [{ role: 'asc' }, { name: 'asc' }]
   })
 
-  let targetUser: {
-    id: string
-    userId?: string
-  } | null = null
+  let targetUser: { id: string; userId?: string } | null = null
+
+  // ==============================
+  // 🎯 DISTRIBUIÇÃO POR CAMPANHA
+  // ==============================
 
   if (distributionRule && distributionRule.members.length > 0) {
+    const now = new Date()
+
     const eligibleScopedUsers = getEligibleAssignableUsers(scopedUsers)
 
-    const validMembers = distributionRule.members.filter((member) =>
-      eligibleScopedUsers.some((user) => user.id === member.userId)
-    )
+    const validMembers = distributionRule.members.filter((member) => {
+      const user = eligibleScopedUsers.find((u) => u.id === member.userId)
+      if (!user) return false
+
+      return isUserInShift(member, now)
+    })
 
     if (distributionRule.mode === 'MANUAL_ONLY') {
       return {
@@ -140,26 +162,21 @@ export async function autoAssignConversation(input: AutoAssignInput) {
         by: ['userId'],
         where: {
           userId: {
-            in: validMembers.map((member) => member.userId)
+            in: validMembers.map((m) => m.userId)
           }
         },
-        _max: {
-          assignedAt: true
-        }
+        _max: { assignedAt: true }
       })
 
-      const lastAssignmentMap = new Map(
-        lastAssignments.map((item) => [item.userId, item._max.assignedAt])
+      const map = new Map(
+        lastAssignments.map((i) => [i.userId, i._max.assignedAt])
       )
 
-      const sortedMembers = [...validMembers].sort((a, b) => {
-        const aLast = lastAssignmentMap.get(a.userId)
-        const bLast = lastAssignmentMap.get(b.userId)
+      const sorted = [...validMembers].sort((a, b) => {
+        const aLast = map.get(a.userId)
+        const bLast = map.get(b.userId)
 
-        if (!aLast && !bLast) {
-          return a.sortOrder - b.sortOrder
-        }
-
+        if (!aLast && !bLast) return a.sortOrder - b.sortOrder
         if (!aLast) return -1
         if (!bLast) return 1
 
@@ -167,48 +184,56 @@ export async function autoAssignConversation(input: AutoAssignInput) {
       })
 
       targetUser = {
-        id: sortedMembers[0].userId,
-        userId: sortedMembers[0].userId
+        id: sorted[0].userId,
+        userId: sorted[0].userId
       }
     }
   }
+
+  // ==============================
+  // 🔥 FALLBACK 1 (IGNORA TURNO)
+  // ==============================
 
   if (!targetUser) {
     const eligibleUsers = getEligibleAssignableUsers(scopedUsers)
 
     if (eligibleUsers.length > 0) {
-      const lastAssignments = await prisma.assignment.groupBy({
-        by: ['userId'],
-        where: {
-          userId: {
-            in: eligibleUsers.map((user) => user.id)
-          }
-        },
-        _max: {
-          assignedAt: true
-        }
-      })
-
-      const lastAssignmentMap = new Map(
-        lastAssignments.map((item) => [item.userId, item._max.assignedAt])
-      )
-
-      const sortedUsers = [...eligibleUsers].sort((a, b) => {
-        const aLast = lastAssignmentMap.get(a.id)
-        const bLast = lastAssignmentMap.get(b.id)
-
-        if (!aLast && !bLast) return 0
-        if (!aLast) return -1
-        if (!bLast) return 1
-
-        return aLast.getTime() - bLast.getTime()
-      })
-
       targetUser = {
-        id: sortedUsers[0].id
+        id: eligibleUsers[0].id
       }
     }
   }
+
+  // ==============================
+  // 🔥 FALLBACK 2 (GLOBAL)
+  // ==============================
+
+  if (!targetUser) {
+    const globalUsers = await prisma.user.findMany({
+      where: {
+        tenantId,
+        isActive: true
+      },
+      select: {
+        id: true,
+        role: true,
+        isActive: true,
+        presenceStatus: true
+      }
+    })
+
+    const eligibleGlobal = getEligibleAssignableUsers(globalUsers)
+
+    if (eligibleGlobal.length > 0) {
+      targetUser = {
+        id: eligibleGlobal[0].id
+      }
+    }
+  }
+
+  // ==============================
+  // 🚨 ÚLTIMO CASO
+  // ==============================
 
   if (!targetUser) {
     return {
@@ -228,17 +253,13 @@ export async function autoAssignConversation(input: AutoAssignInput) {
         conversationId: conversation.id,
         unassignedAt: null
       },
-      select: {
-        id: true
-      }
+      select: { id: true }
     })
 
     if (activeAssignments.length > 0) {
       await tx.assignment.updateMany({
         where: {
-          id: {
-            in: activeAssignments.map((assignment) => assignment.id)
-          }
+          id: { in: activeAssignments.map((a) => a.id) }
         },
         data: {
           unassignedAt: now
@@ -247,9 +268,7 @@ export async function autoAssignConversation(input: AutoAssignInput) {
     }
 
     const updated = await tx.conversation.update({
-      where: {
-        id: conversation.id
-      },
+      where: { id: conversation.id },
       data: {
         assignedUserId: targetUserId,
         assignedAt: now,
@@ -275,6 +294,23 @@ export async function autoAssignConversation(input: AutoAssignInput) {
         reason: reason ?? 'Auto assignment'
       }
     })
+
+    /**
+     * 🚨 ALERTA SISTEMA
+     */
+    if (!distributionRule || !distributionRule.members.length) {
+      await tx.message.create({
+        data: {
+  conversationId: conversation.id,
+  direction: 'INBOUND',
+  senderType: 'SYSTEM',
+  type: 'TEXT',
+  provider: 'INTERNAL',
+          content:
+            '⚠️ Lead sem campanha identificada ou sem distribuição configurada.'
+        }
+      })
+    }
 
     return updated
   })

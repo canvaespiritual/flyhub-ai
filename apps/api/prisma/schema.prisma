@@ -27,6 +27,7 @@ model Tenant {
   aiConfig           OperationAiConfig?
   messageTemplates   MessageTemplate[]
   broadcasts         Broadcast[]
+  whatsappConnections WhatsAppConnection[]
 }
 
 model PhoneNumber {
@@ -38,6 +39,7 @@ model PhoneNumber {
   provider          MessageProvider           @default(WHATSAPP_CLOUD)
   providerAccountId String?
   externalId        String?
+  whatsappConnectionId String?
   isActive          Boolean                   @default(true)
   isDefault         Boolean                   @default(false)
   profileName       String?
@@ -49,6 +51,7 @@ model PhoneNumber {
 
   tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   manager        User?          @relation("PhoneNumberManager", fields: [managerId], references: [id], onDelete: SetNull)
+  whatsappConnection WhatsAppConnection? @relation(fields: [whatsappConnectionId], references: [id], onDelete: SetNull)
   conversations  Conversation[]
   campaigns      Campaign[]
   webhookEvents  WebhookEvent[]
@@ -56,6 +59,7 @@ model PhoneNumber {
   @@index([tenantId, isActive])
   @@index([tenantId, managerId, isActive])
   @@index([externalId])
+  @@index([whatsappConnectionId])
 }
 
 model User {
@@ -239,6 +243,12 @@ model CampaignDistributionMember {
   userId      String
   sortOrder   Int
   isActive    Boolean  @default(true)
+
+  shiftStartHour   Int?   // 0-23
+  shiftEndHour     Int?   // 0-23
+  shiftDays        Int[]  // 0=domingo ... 6=sábado
+  timezone         String?
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -481,6 +491,27 @@ model Broadcast {
 
   @@index([tenantId, status, createdAt])
   @@index([tenantId, scheduledAt])
+}
+
+model WhatsAppConnection {
+  id                 String                      @id @default(cuid())
+  tenantId           String
+  name               String
+  provider           MessageProvider             @default(WHATSAPP_CLOUD)
+  wabaId             String
+  accessToken        String?
+  tokenLastUpdatedAt DateTime?
+  status             PhoneNumberConnectionStatus @default(CONNECTED)
+  isDefault          Boolean                     @default(false)
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  phoneNumbers PhoneNumber[]
+
+  @@unique([tenantId, wabaId])
+  @@index([tenantId, isDefault])
+  @@index([wabaId])
 }
 
 enum ConversationStatus {

@@ -337,10 +337,14 @@ export async function messageRoutes(app: FastifyInstance) {
         tenantId
       },
       include: {
-        contact: true,
-        phoneNumber: true,
-        assignedUser: true
-      }
+  contact: true,
+  phoneNumber: {
+    include: {
+      whatsappConnection: true
+    }
+  },
+  assignedUser: true
+}
     })
 
     if (!conversation) {
@@ -440,15 +444,18 @@ export async function messageRoutes(app: FastifyInstance) {
         message: 'Contact phone is missing'
       })
     }
+    const whatsappAccessToken =
+  conversation.phoneNumber.whatsappConnection?.accessToken ?? null
 
     const now = new Date()
 
     if (type === 'text') {
       const waResponse = await sendWhatsAppTextMessage({
-        phoneNumberId: conversation.phoneNumber.externalId,
-        to: conversation.contact.phone,
-        text: content!.trim()
-      })
+  phoneNumberId: conversation.phoneNumber.externalId,
+  to: conversation.contact.phone,
+  text: content!.trim(),
+  accessToken: whatsappAccessToken
+})
 
       const message = await prisma.$transaction(async (tx) => {
         const createdMessage = await tx.message.create({
@@ -608,7 +615,8 @@ const storageUpload = await uploadBufferToStorage({
   phoneNumberId: conversation.phoneNumber.externalId,
   fileBuffer: processedBuffer,
   mimeType: processedMimeType,
-  fileName: processedFileName
+  fileName: processedFileName,
+  accessToken: whatsappAccessToken
 })
 
         console.log('[MEDIA_META_UPLOAD_DONE]', {
@@ -625,7 +633,8 @@ const storageUpload = await uploadBufferToStorage({
         mediaType === 'image' || mediaType === 'video' || mediaType === 'document'
           ? content?.trim()
           : undefined,
-      fileName: mediaType === 'document' ? safeFileName : undefined
+      fileName: mediaType === 'document' ? safeFileName : undefined,
+      accessToken: whatsappAccessToken
     })
     console.log('[MEDIA_META_SEND_DONE]', {
       conversationId,

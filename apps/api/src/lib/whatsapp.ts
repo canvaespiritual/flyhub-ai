@@ -10,16 +10,32 @@ function tryFixBrazilPhone(phone: string) {
   return null
 }
 
-function getWhatsAppAuthHeaders(contentType?: 'json') {
+function getWhatsAppAccessToken(accessToken?: string | null) {
+  return accessToken || process.env.WHATSAPP_ACCESS_TOKEN
+}
+
+function getWhatsAppAuthHeaders(contentType?: 'json', accessToken?: string | null) {
+  const token = getWhatsAppAccessToken(accessToken)
+
+  if (!token) {
+    throw new Error('WhatsApp access token not configured')
+  }
+
   return {
-    Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+    Authorization: `Bearer ${token}`,
     ...(contentType === 'json' ? { 'Content-Type': 'application/json' } : {})
   }
 }
 
-function getWhatsAppUploadAuthHeaders() {
+function getWhatsAppUploadAuthHeaders(accessToken?: string | null) {
+  const token = getWhatsAppAccessToken(accessToken)
+
+  if (!token) {
+    throw new Error('WhatsApp access token not configured')
+  }
+
   return {
-    Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`
+    Authorization: `Bearer ${token}`
   }
 }
 
@@ -27,15 +43,16 @@ export async function sendWhatsAppTextMessage(params: {
   phoneNumberId: string
   to: string
   text: string
+  accessToken?: string | null
 }) {
-  const { phoneNumberId, to, text } = params
+  const { phoneNumberId, to, text, accessToken } = params
 
   const url = `${WHATSAPP_API_URL}/${phoneNumberId}/messages`
 
   async function send(toNumber: string) {
     const response = await fetch(url, {
       method: 'POST',
-      headers: getWhatsAppAuthHeaders('json'),
+      headers: getWhatsAppAuthHeaders('json', accessToken),
       body: JSON.stringify({
         messaging_product: 'whatsapp',
         to: toNumber,
@@ -85,8 +102,9 @@ export async function uploadWhatsAppMedia(params: {
   fileBuffer: Buffer
   mimeType: string
   fileName: string
+  accessToken?: string | null
 }) {
-  const { phoneNumberId, fileBuffer, mimeType, fileName } = params
+  const { phoneNumberId, fileBuffer, mimeType, fileName, accessToken } = params
 
   const url = `${WHATSAPP_API_URL}/${phoneNumberId}/media`
   const formData = new FormData()
@@ -101,7 +119,7 @@ export async function uploadWhatsAppMedia(params: {
 
   const response = await fetch(url, {
     method: 'POST',
-    headers: getWhatsAppUploadAuthHeaders(),
+    headers: getWhatsAppUploadAuthHeaders(accessToken),
     body: formData
   })
     
@@ -133,8 +151,9 @@ export async function sendWhatsAppMediaMessage(params: {
   mediaId: string
   caption?: string
   fileName?: string
+  accessToken?: string | null
 }) {
-  const { phoneNumberId, to, type, mediaId, caption, fileName } = params
+  const { phoneNumberId, to, type, mediaId, caption, fileName, accessToken } = params
 
   const url = `${WHATSAPP_API_URL}/${phoneNumberId}/messages`
 
@@ -192,7 +211,7 @@ export async function sendWhatsAppMediaMessage(params: {
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: getWhatsAppAuthHeaders('json'),
+      headers: getWhatsAppAuthHeaders('json', accessToken),
       body: JSON.stringify(payload)
     })
 
