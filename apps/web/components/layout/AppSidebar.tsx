@@ -23,6 +23,11 @@ const dashboardItems: SidebarItem[] = [
     roles: ['agent', 'manager', 'admin']
   },
   {
+    label: 'Números',
+    href: '/dashboard/phone-numbers',
+    roles: ['manager', 'admin']
+  },
+  {
     label: 'Configurações',
     href: '/dashboard/settings',
     roles: ['manager', 'admin']

@@ -566,3 +566,66 @@ export async function updateCampaignDistribution(id: string, data: any) {
   return res.json()
 }
 
+export type PhoneNumberPayload = {
+  number: string
+  label?: string | null
+  managerId?: string | null
+  providerAccountId: string
+  externalId: string
+  accessToken?: string | null
+  isActive?: boolean
+  isDefault?: boolean
+}
+
+export async function getPhoneNumbers() {
+  const res = await apiFetch(`${API_BASE_URL}/phone-numbers`, {
+    cache: 'no-store'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao buscar números')
+  }
+
+  return res.json()
+}
+
+export async function getPhoneNumberOptions() {
+  const res = await apiFetch(`${API_BASE_URL}/phone-numbers/options`, {
+    cache: 'no-store'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao buscar opções de números')
+  }
+
+  return res.json()
+}
+
+export async function createPhoneNumber(payload: PhoneNumberPayload) {
+  const res = await apiFetch(`${API_BASE_URL}/phone-numbers`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao cadastrar número')
+  }
+
+  return res.json()
+}
+
+export async function updatePhoneNumber(
+  phoneNumberId: string,
+  payload: Partial<PhoneNumberPayload>
+) {
+  const res = await apiFetch(`${API_BASE_URL}/phone-numbers/${phoneNumberId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao atualizar número')
+  }
+
+  return res.json()
+}

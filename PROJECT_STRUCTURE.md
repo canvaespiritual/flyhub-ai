@@ -960,6 +960,88 @@ Deixar o sistema pronto para:
 Após isso, iremos para login.
 
 ----------
+Árvore sugerida de arquivos
+Backend
+manter e mexer pouco
+apps/api/src/app.ts
+apps/api/src/routes/conversations.ts
+apps/api/src/routes/messages.ts
+apps/api/src/routes/campaigns.ts
+apps/api/src/routes/auth.ts
+apps/api/src/routes/users.ts
+apps/api/src/routes/presence.ts
+
+novos arquivos de rota
+
+apps/api/src/routes/phone-numbers.ts
+apps/api/src/routes/message-templates.ts
+apps/api/src/routes/broadcasts.ts
+apps/api/src/routes/operation-settings.ts
+apps/api/src/routes/ai-config.ts
+apps/api/src/routes/master-operations.ts
+apps/api/src/routes/master-admins.ts
+
+novas libs
+
+apps/api/src/lib/permissions.ts
+apps/api/src/lib/role-navigation.ts ou helper equivalente
+apps/api/src/lib/operation-settings.ts
+apps/api/src/lib/ai/resolve-operation-ai-config.ts
+apps/api/src/lib/ai/build-operation-context.ts
+manter
+assignment-policy.ts
+routing-policy.ts
+auto-assignment.ts
+
+Essa tríade está boa e deve continuar separada.
+
+Frontend
+
+manter e refinar
+
+apps/web/app/dashboard/page.tsx
+apps/web/components/dashboard/ConversationList.tsx
+apps/web/components/dashboard/ChatWindow.tsx
+apps/web/components/dashboard/LeadSidebar.tsx
+apps/web/components/dashboard/ChatComposer.tsx
+
+novos layouts
+
+apps/web/components/layout/AppShell.tsx
+apps/web/components/layout/AppSidebar.tsx
+apps/web/components/layout/AppTopbar.tsx
+
+novas páginas
+
+apps/web/app/dashboard/settings/page.tsx
+apps/web/app/dashboard/settings/team/page.tsx
+apps/web/app/dashboard/settings/users/page.tsx
+apps/web/app/dashboard/settings/numbers/page.tsx
+apps/web/app/dashboard/settings/campaigns/page.tsx
+apps/web/app/dashboard/settings/templates/page.tsx
+apps/web/app/dashboard/settings/broadcasts/page.tsx
+apps/web/app/dashboard/settings/ai/page.tsx
+apps/web/app/dashboard/settings/distribution/page.tsx
+
+master
+
+apps/web/app/master/page.tsx
+apps/web/app/master/operations/page.tsx
+apps/web/app/master/admins/page.tsx
+apps/web/app/master/settings/page.tsx
+
+novos componentes administrativos
+
+apps/web/components/settings/SettingsShell.tsx
+apps/web/components/settings/SettingsNav.tsx
+apps/web/components/users/UserList.tsx
+apps/web/components/numbers/PhoneNumberList.tsx
+apps/web/components/templates/TemplateList.tsx
+apps/web/components/broadcasts/BroadcastList.tsx
+apps/web/components/ai/AiConfigForm.tsx
+
+--------
+
 
 
 comandos: pnpm --filter api prisma db seed
@@ -985,7 +1067,10 @@ ou
 Email: atendente2@flyhub.com
 
 Senha: Agent@123
+
+
 Campo	Valor
+
 Server / Host	metro.proxy.rlwy.net
 Port	49794
 Database	railway
@@ -995,3 +1080,11 @@ Password	FCRCvjWbxoWMFqcNzrgkkQsBYkuaezpt
 login e senha amazon: gustavopradoc@gmail.com
 senha: Crailgra272@
 Senha facebook> Crailgra270@
+
+
+
+
+
+token Whatsapp 
+
+chave google authenticator: C2U4 Y5N5 IPEC 372T QUQC OSNQ BIY4 PVRI

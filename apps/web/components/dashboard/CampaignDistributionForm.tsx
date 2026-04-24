@@ -36,6 +36,10 @@ type DistributionMember = {
   userId: string
   sortOrder: number
   isActive?: boolean
+  shiftStartHour?: number | null
+  shiftEndHour?: number | null
+  shiftDays?: number[]
+  timezone?: string | null
   user?: {
     id: string
     name: string
@@ -62,6 +66,22 @@ type DistributionRule = {
   members: DistributionMember[]
 }
 
+type AgentShift = {
+  shiftStartHour?: number
+  shiftEndHour?: number
+  shiftDays: number[]
+}
+
+const WEEK_DAYS = [
+  { value: 0, label: 'Dom' },
+  { value: 1, label: 'Seg' },
+  { value: 2, label: 'Ter' },
+  { value: 3, label: 'Qua' },
+  { value: 4, label: 'Qui' },
+  { value: 5, label: 'Sex' },
+  { value: 6, label: 'Sáb' }
+]
+
 export default function CampaignDistributionForm({
   campaignId
 }: CampaignDistributionFormProps) {
@@ -77,6 +97,7 @@ export default function CampaignDistributionForm({
   const [reassignOnTimeout, setReassignOnTimeout] = useState(false)
   const [responseTimeoutSeconds, setResponseTimeoutSeconds] = useState(300)
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([])
+  const [shifts, setShifts] = useState<Record<string, AgentShift>>({})
 
   useEffect(() => {
     void load()
@@ -103,19 +124,31 @@ export default function CampaignDistributionForm({
       if (distribution) {
         const rule = distribution as DistributionRule
 
+        const orderedMembers = [...(rule.members || [])].sort(
+          (a, b) => a.sortOrder - b.sortOrder
+        )
+
+        const initialShifts: Record<string, AgentShift> = {}
+
+        orderedMembers.forEach((member) => {
+          initialShifts[member.userId] = {
+            shiftStartHour: member.shiftStartHour ?? undefined,
+            shiftEndHour: member.shiftEndHour ?? undefined,
+            shiftDays: member.shiftDays ?? []
+          }
+        })
+
         setMode(rule.mode)
         setReassignOnTimeout(rule.reassignOnTimeout)
         setResponseTimeoutSeconds(rule.responseTimeoutSeconds)
-        setSelectedAgentIds(
-          [...(rule.members || [])]
-            .sort((a, b) => a.sortOrder - b.sortOrder)
-            .map((member) => member.userId)
-        )
+        setSelectedAgentIds(orderedMembers.map((member) => member.userId))
+        setShifts(initialShifts)
       } else {
         setMode('ROUND_ROBIN')
         setReassignOnTimeout(false)
         setResponseTimeoutSeconds(300)
         setSelectedAgentIds([])
+        setShifts({})
       }
     } catch (err: any) {
       setError(err?.message || 'Erro ao carregar distribuição')
@@ -152,16 +185,28 @@ export default function CampaignDistributionForm({
         user.managerId === campaign.managerId
     )
   }, [allUsers, campaign])
+
   useEffect(() => {
-  if (managerAgents.length === 0) {
-    setSelectedAgentIds([])
-    return
-  }
+    if (managerAgents.length === 0) {
+      setSelectedAgentIds([])
+      return
+    }
 
-  const validAgentIds = new Set(managerAgents.map((agent) => agent.id))
+    const validAgentIds = new Set(managerAgents.map((agent) => agent.id))
 
-  setSelectedAgentIds((prev) => prev.filter((id) => validAgentIds.has(id)))
-}, [managerAgents])
+    setSelectedAgentIds((prev) => prev.filter((id) => validAgentIds.has(id)))
+    setShifts((prev) => {
+      const next: Record<string, AgentShift> = {}
+
+      Object.entries(prev).forEach(([userId, shift]) => {
+        if (validAgentIds.has(userId)) {
+          next[userId] = shift
+        }
+      })
+
+      return next
+    })
+  }, [managerAgents])
 
   const usesTimeoutQueue = mode === 'QUEUE_WITH_TIMEOUT'
   const requiresMembers = mode !== 'MANUAL_ONLY'
@@ -174,6 +219,13 @@ export default function CampaignDistributionForm({
 
       return [...prev, userId]
     })
+
+    setShifts((prev) => ({
+      ...prev,
+      [userId]: prev[userId] ?? {
+        shiftDays: []
+      }
+    }))
   }
 
   function moveAgentUp(userId: string) {
@@ -195,6 +247,55 @@ export default function CampaignDistributionForm({
       const updated = [...prev]
       ;[updated[index], updated[index + 1]] = [updated[index + 1], updated[index]]
       return updated
+    })
+  }
+
+  function toggleShiftDay(userId: string, day: number) {
+    setShifts((prev) => {
+      const currentShift = prev[userId] ?? { shiftDays: [] }
+      const currentDays = currentShift.shiftDays ?? []
+
+      const nextDays = currentDays.includes(day)
+        ? currentDays.filter((item) => item !== day)
+        : [...currentDays, day].sort((a, b) => a - b)
+
+      return {
+        ...prev,
+        [userId]: {
+          ...currentShift,
+          shiftDays: nextDays
+        }
+      }
+    })
+  }
+
+  function updateShiftHour(
+    userId: string,
+    field: 'shiftStartHour' | 'shiftEndHour',
+    value: string
+  ) {
+    setShifts((prev) => {
+      const currentShift = prev[userId] ?? { shiftDays: [] }
+
+      if (value === '') {
+        const nextShift = { ...currentShift }
+        delete nextShift[field]
+
+        return {
+          ...prev,
+          [userId]: nextShift
+        }
+      }
+
+      const numericValue = Math.max(0, Math.min(23, Number(value)))
+
+      return {
+        ...prev,
+        [userId]: {
+          ...currentShift,
+          [field]: numericValue
+        }
+      }
     })
   }
 
@@ -220,24 +321,27 @@ export default function CampaignDistributionForm({
       }
 
       const validAgentIds = new Set(managerAgents.map((agent) => agent.id))
-const sanitizedSelectedAgentIds = selectedAgentIds.filter((id) =>
-  validAgentIds.has(id)
-)
+      const sanitizedSelectedAgentIds = selectedAgentIds.filter((id) =>
+        validAgentIds.has(id)
+      )
 
-if (requiresMembers && sanitizedSelectedAgentIds.length === 0) {
-  setError('Selecione pelo menos um atendente válido para essa distribuição.')
-  return
-}
+      if (requiresMembers && sanitizedSelectedAgentIds.length === 0) {
+        setError('Selecione pelo menos um atendente válido para essa distribuição.')
+        return
+      }
 
-await updateCampaignDistribution(campaignId, {
-  mode,
-  reassignOnTimeout: usesTimeoutQueue ? reassignOnTimeout : false,
-  responseTimeoutSeconds: usesTimeoutQueue ? responseTimeoutSeconds : 300,
-  members: sanitizedSelectedAgentIds.map((userId, index) => ({
-    userId,
-    sortOrder: index + 1
-  }))
-})
+      await updateCampaignDistribution(campaignId, {
+        mode,
+        reassignOnTimeout: usesTimeoutQueue ? reassignOnTimeout : false,
+        responseTimeoutSeconds: usesTimeoutQueue ? responseTimeoutSeconds : 300,
+        members: sanitizedSelectedAgentIds.map((userId, index) => ({
+          userId,
+          sortOrder: index + 1,
+          shiftStartHour: shifts[userId]?.shiftStartHour ?? null,
+          shiftEndHour: shifts[userId]?.shiftEndHour ?? null,
+          shiftDays: shifts[userId]?.shiftDays ?? []
+        }))
+      })
 
       setSuccess('Distribuição salva com sucesso.')
       await load()
@@ -367,6 +471,7 @@ await updateCampaignDistribution(campaignId, {
             {managerAgents.map((agent) => {
               const selected = selectedAgentIds.includes(agent.id)
               const orderIndex = selectedAgentIds.indexOf(agent.id)
+              const shift = shifts[agent.id] ?? { shiftDays: [] }
 
               return (
                 <div
@@ -410,6 +515,86 @@ await updateCampaignDistribution(campaignId, {
                       </div>
                     )}
                   </div>
+
+                  {selected && (
+                    <div className="mt-4 rounded-lg border border-neutral-800 bg-[#0b141a] p-3">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="text-xs font-medium text-neutral-300">
+                            Turno deste atendente
+                          </div>
+                          <div className="mt-1 text-xs text-neutral-500">
+                            Se deixar sem dias ou sem horário, ele fica disponível sempre.
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {WEEK_DAYS.map((day) => {
+                          const isSelected = shift.shiftDays.includes(day.value)
+
+                          return (
+                            <button
+                              key={day.value}
+                              type="button"
+                              onClick={() => toggleShiftDay(agent.id, day.value)}
+                              className={`rounded-full px-3 py-1 text-xs transition ${
+                                isSelected
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
+                              }`}
+                            >
+                              {day.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <div>
+                          <label className="mb-1 block text-xs text-neutral-400">
+                            Início
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={23}
+                            placeholder="0"
+                            value={shift.shiftStartHour ?? ''}
+                            onChange={(e) =>
+                              updateShiftHour(
+                                agent.id,
+                                'shiftStartHour',
+                                e.target.value
+                              )
+                            }
+                            className="w-full rounded-lg border border-neutral-700 bg-black p-2 text-sm text-white"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="mb-1 block text-xs text-neutral-400">
+                            Fim
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={23}
+                            placeholder="23"
+                            value={shift.shiftEndHour ?? ''}
+                            onChange={(e) =>
+                              updateShiftHour(agent.id, 'shiftEndHour', e.target.value)
+                            }
+                            className="w-full rounded-lg border border-neutral-700 bg-black p-2 text-sm text-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-2 text-xs text-neutral-500">
+                        Exemplo: 9 até 18. Para madrugada: 22 até 6.
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}
