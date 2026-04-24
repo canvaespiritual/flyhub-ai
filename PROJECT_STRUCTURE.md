@@ -1088,3 +1088,20 @@ Senha facebook> Crailgra270@
 token Whatsapp 
 
 chave google authenticator: C2U4 Y5N5 IPEC 372T QUQC OSNQ BIY4 PVRI
+
+
+NÍVEL GLOBAL (reuso)
+→ Modelos de IA / Assistentes (templates)
+→ Base de conhecimento (docs, FAQs)
+→ Políticas/guardrails
+
+NÍVEL OPERAÇÃO (tenant)
+→ Configuração do assistente (parametrização)
+→ Prompts + tom + objetivos
+→ Dados locais (produtos, regiões, regras)
+
+NÍVEL CAMPANHA
+→ Contexto específico (oferta, anúncio, script inicial)
+
+NÍVEL CONVERSA
+→ Memória/resumo do lead (estado atual)

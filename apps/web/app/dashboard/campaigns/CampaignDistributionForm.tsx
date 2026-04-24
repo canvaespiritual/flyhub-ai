@@ -1,104 +1,137 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getUsers } from '@/lib/api'
+import { getCampaignDistribution, updateCampaignDistribution, getUsers } from '@/lib/api'
 
-type User = {
-  id: string
-  name: string
-  role: string
-}
+export default function CampaignDistributionForm({ campaignId }: { campaignId: string }) {
+  const [loading, setLoading] = useState(true)
+  const [users, setUsers] = useState<any[]>([])
+  const [members, setMembers] = useState<any[]>([])
 
-export default function CampaignDistributionForm({
-  campaignId
-}: {
-  campaignId: string
-}) {
-  const [users, setUsers] = useState<User[]>([])
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([])
-  const [strategy, setStrategy] = useState<'round_robin' | 'priority'>('round_robin')
+  const [mode, setMode] = useState('ROUND_ROBIN')
+  const [timeout, setTimeoutValue] = useState(300)
+  const [reassign, setReassign] = useState(false)
+
+  async function load() {
+    setLoading(true)
+
+    const [rule, usersList] = await Promise.all([
+      getCampaignDistribution(campaignId),
+      getUsers()
+    ])
+
+    setUsers(usersList.filter((u: any) => u.role === 'agent'))
+
+    if (rule) {
+      setMode(rule.mode)
+      setTimeoutValue(rule.responseTimeoutSeconds)
+      setReassign(rule.reassignOnTimeout)
+      setMembers(rule.members || [])
+    }
+
+    setLoading(false)
+  }
 
   useEffect(() => {
-    loadUsers()
-  }, [])
-
-  async function loadUsers() {
-    try {
-      const data = await getUsers()
-      setUsers(data.filter((u: User) => u.role === 'agent'))
-    } catch (err) {
-      console.error('Erro ao carregar usuários', err)
-    }
-  }
-
-  function toggleUser(userId: string) {
-    setSelectedUsers((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
-    )
-  }
+    load()
+  }, [campaignId])
 
   async function handleSave() {
-    console.log('Salvar distribuição:', {
-      campaignId,
-      strategy,
-      selectedUsers
+    await updateCampaignDistribution(campaignId, {
+      mode,
+      responseTimeoutSeconds: timeout,
+      reassignOnTimeout: reassign,
+      members: members.map((m: any, i: number) => ({
+        userId: m.userId || m.id,
+        sortOrder: i + 1
+      }))
     })
 
-    alert('Configuração salva (mock por enquanto)')
+    alert('Salvo!')
   }
 
+  function addMember(user: any) {
+    if (members.some(m => (m.userId || m.id) === user.id)) return
+    setMembers([...members, user])
+  }
+
+  function removeMember(id: string) {
+    setMembers(members.filter(m => (m.userId || m.id) !== id))
+  }
+
+  if (loading) return <div>Carregando distribuição...</div>
+
   return (
-    <div className="space-y-6 text-white">
-      <h2 className="text-xl font-semibold">Configuração de Distribuição</h2>
+    <div className="space-y-4">
 
-      {/* Estratégia */}
+      <h2 className="text-lg font-bold">Distribuição</h2>
+
+      {/* Modo */}
+      <select
+        value={mode}
+        onChange={(e) => setMode(e.target.value)}
+        className="bg-[#1f2c33] p-2 rounded"
+      >
+        <option value="ROUND_ROBIN">Round Robin</option>
+        <option value="ORDERED_QUEUE">Fila Ordenada</option>
+        <option value="MANUAL_ONLY">Manual</option>
+      </select>
+
+      {/* Timeout */}
+      <input
+        type="number"
+        value={timeout}
+        onChange={(e) => setTimeoutValue(Number(e.target.value))}
+        className="bg-[#1f2c33] p-2 rounded w-full"
+        placeholder="Tempo de resposta (segundos)"
+      />
+
+      {/* Redistribuição */}
+      <label className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={reassign}
+          onChange={(e) => setReassign(e.target.checked)}
+        />
+        Redistribuir automaticamente
+      </label>
+
+      {/* Membros */}
       <div>
-        <label className="block text-sm mb-2 text-neutral-400">
-          Estratégia de distribuição
-        </label>
+        <h3 className="font-semibold">Corretores</h3>
 
-        <select
-          value={strategy}
-          onChange={(e) => setStrategy(e.target.value as any)}
-          className="w-full bg-[#1f2c33] p-3 rounded-lg"
-        >
-          <option value="round_robin">Rodízio (Round Robin)</option>
-          <option value="priority">Prioridade</option>
-        </select>
-      </div>
-
-      {/* Usuários */}
-      <div>
-        <label className="block text-sm mb-2 text-neutral-400">
-          Atendentes participantes
-        </label>
-
-        <div className="space-y-2">
-          {users.map((user) => (
-            <label
-              key={user.id}
-              className="flex items-center gap-2 bg-[#111b21] p-2 rounded-lg cursor-pointer"
-            >
-              <input
-                type="checkbox"
-                checked={selectedUsers.includes(user.id)}
-                onChange={() => toggleUser(user.id)}
-              />
-              {user.name}
-            </label>
+        <div className="space-y-2 mt-2">
+          {members.map((m: any, i: number) => (
+            <div key={i} className="flex justify-between bg-[#202c33] p-2 rounded">
+              <span>{m.name}</span>
+              <button onClick={() => removeMember(m.userId || m.id)}>remover</button>
+            </div>
           ))}
+        </div>
+
+        <div className="mt-3">
+          <select
+            onChange={(e) => {
+              const user = users.find(u => u.id === e.target.value)
+              if (user) addMember(user)
+            }}
+            className="bg-[#1f2c33] p-2 rounded w-full"
+          >
+            <option>Adicionar agente</option>
+            {users.map((u: any) => (
+              <option key={u.id} value={u.id}>{u.name}</option>
+            ))}
+          </select>
         </div>
       </div>
 
-      {/* Botão salvar */}
       <button
         onClick={handleSave}
-        className="bg-green-600 px-4 py-2 rounded-lg hover:bg-green-700"
+        className="bg-green-600 px-4 py-2 rounded"
       >
-        Salvar configuração
+        Salvar
       </button>
+
     </div>
   )
 }

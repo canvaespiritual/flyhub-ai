@@ -33,6 +33,8 @@ export interface Conversation {
 
   subject?: string
   metaThreadId?: string
+  campaignId?: string
+  managerId?: string
 
   updatedAt: string
   assignedAt?: string
