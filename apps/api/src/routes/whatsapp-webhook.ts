@@ -6,13 +6,16 @@ import { resolveCampaignFromInbound } from '../lib/campaign-routing.js'
 import {
   markWhatsAppMessageAsRead,
   getWhatsAppMediaMetadata,
-  downloadWhatsAppMediaFile
+  downloadWhatsAppMediaFile,
+  sendWhatsAppTextMessage
 } from '../lib/whatsapp.js'
 import {
   isStorageConfigured,
   uploadBufferToStorage
 } from '../lib/storage.js'
 import { startInitialSequenceForConversation } from '../lib/conversation-automation.js'
+import { runAiOrchestrator } from '../lib/ai/ai-orchestrator.js'
+
 type WhatsAppWebhookPayload = {
   object?: string
   entry?: Array<{
@@ -424,8 +427,11 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
                   ? [{ number: normalizePhone(displayPhoneNumber) ?? undefined }]
                   : [])
               ].filter(Boolean) as Array<Record<string, unknown>>
-            }
-          })
+              },
+                include: {
+                  whatsappConnection: true
+                }
+              })
 
           if (!phoneNumber) {
             request.log.warn(
@@ -856,6 +862,73 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
     )
   }
 }
+if (
+  baseData.conversation.mode === 'AI' &&
+  !baseData.isNewConversation &&
+  baseData.conversation.automationStatus !== 'RUNNING'
+) {
+  try {
+    const aiResponse = await runAiOrchestrator({
+      tenantId,
+      conversationId: baseData.conversation.id,
+      campaignId: baseData.conversation.campaignId,
+      inboundMessage: createdMessage
+    })
+
+    if (aiResponse?.content && phoneNumber.externalId && inboundFrom) {
+      const whatsappAccessToken =
+        phoneNumber.whatsappConnection?.accessToken ?? null
+
+      const waResponse = await sendWhatsAppTextMessage({
+        phoneNumberId: phoneNumber.externalId,
+        to: inboundFrom,
+        text: aiResponse.content,
+        accessToken: whatsappAccessToken
+      })
+
+      const now = new Date()
+
+      const aiMessage = await prisma.message.create({
+        data: {
+          conversationId: baseData.conversation.id,
+          senderType: 'AI',
+          direction: 'OUTBOUND',
+          type: 'TEXT',
+          status: 'SENT',
+          provider: phoneNumber.provider,
+          content: aiResponse.content,
+          externalMessageId: waResponse.messages?.[0]?.id ?? null,
+          externalStatus: 'sent',
+          sentAt: now
+        }
+      })
+
+      await prisma.conversation.update({
+        where: {
+          id: baseData.conversation.id
+        },
+        data: {
+          lastMessageAt: now,
+          lastOutboundAt: now
+        }
+      })
+
+      publish(tenantId, {
+        type: 'message:new',
+        payload: mapRealtimeMessage(aiMessage)
+      })
+    }
+  } catch (error) {
+    request.log.error(
+      {
+        error,
+        conversationId: baseData.conversation.id
+      },
+      'Failed to run AI orchestrator for inbound WhatsApp message'
+    )
+  }
+}
+
             if (!baseData.conversation.assignedUserId) {
               try {
                 const autoAssignResult = await autoAssignConversation({

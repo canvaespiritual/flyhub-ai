@@ -28,6 +28,7 @@ model Tenant {
   messageTemplates   MessageTemplate[]
   broadcasts         Broadcast[]
   whatsappConnections WhatsAppConnection[]
+  aiAgents           AiAgent[]
 }
 
 model PhoneNumber {
@@ -167,6 +168,7 @@ model Campaign {
   initialSteps      CampaignInitialStep[]
   followUpRules     CampaignFollowUpRule[]
   distributionRule  CampaignDistributionRule?
+  aiConfig          CampaignAiConfig?
 
   @@index([tenantId, isActive])
   @@index([phoneNumberId, isActive])
@@ -300,8 +302,9 @@ model Conversation {
 
   createdAt                DateTime                     @default(now())
   updatedAt                DateTime                     @updatedAt
+  aiState ConversationAiState?
 
-   tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   contact      Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
   phoneNumber  PhoneNumber @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
   campaign     Campaign?   @relation(fields: [campaignId], references: [id], onDelete: SetNull)
@@ -660,4 +663,179 @@ enum BroadcastStatus {
   COMPLETED
   FAILED
   CANCELLED
+}
+
+enum AiResourceType {
+  LINK
+  AUDIO
+  VIDEO
+  IMAGE
+  PDF
+  DOCUMENT
+  TEXT
+}
+
+enum AiKnowledgeTableType {
+  SIMULATION
+  DOCUMENTS
+  PRICING
+  FAQ
+  CUSTOM
+}
+
+enum AiFollowupWindowType {
+  SERVICE_24H
+  ENTRY_POINT_72H
+  TEMPLATE_AFTER_WINDOW
+}
+
+enum AiPromptVersionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model AiAgent {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  name               String
+  slug               String?
+  description        String?
+  isActive           Boolean  @default(true)
+
+  model              String   @default("gpt-4o-mini")
+  temperature        Float    @default(0.4)
+  maxContextMessages Int      @default(12)
+
+  objective          String?
+  tone               String?
+  basePrompt         String?
+  safetyRules        String?
+  handoffRules       String?
+  businessRules      String?
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  stages             AiStage[]
+  objections         AiObjection[]
+  resources          AiResource[]
+  knowledgeTables    AiKnowledgeTable[]
+  followupRules      AiFollowupRule[]
+  successExamples    AiSuccessExample[]
+  promptVersions     AiPromptVersion[]
+  campaignConfigs    CampaignAiConfig[]
+  conversationStates ConversationAiState[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, isActive])
+}
+
+model AiStage {
+  id        String   @id @default(cuid())
+  agentId   String
+  name      String
+  order     Int
+  objective String?
+  instructions String?
+  isActive  Boolean @default(true)
+
+  agent     AiAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, order])
+}
+
+model AiObjection {
+  id        String   @id @default(cuid())
+  agentId   String
+  stageId   String?
+  title     String
+  triggers  String?
+  response  String?
+  isActive  Boolean @default(true)
+
+  agent     AiAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+}
+
+model AiResource {
+  id          String   @id @default(cuid())
+  agentId     String
+  type        AiResourceType
+  title       String
+  url         String?
+  description String?
+  isActive    Boolean @default(true)
+
+  agent       AiAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+}
+
+model AiKnowledgeTable {
+  id          String   @id @default(cuid())
+  agentId     String
+  name        String
+  type        AiKnowledgeTableType
+  isActive    Boolean @default(true)
+
+  agent       AiAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  rows        AiKnowledgeRow[]
+}
+
+model AiKnowledgeRow {
+  id       String @id @default(cuid())
+  tableId  String
+  data     Json
+
+  table    AiKnowledgeTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+}
+
+model AiFollowupRule {
+  id          String   @id @default(cuid())
+  agentId     String
+  delayMinutes Int
+  message     String
+  windowType  AiFollowupWindowType
+  isActive    Boolean @default(true)
+
+  agent       AiAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+}
+
+model AiSuccessExample {
+  id          String   @id @default(cuid())
+  agentId     String
+  title       String
+  transcript  String
+  isActive    Boolean @default(true)
+
+  agent       AiAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+}
+
+model AiPromptVersion {
+  id        String   @id @default(cuid())
+  agentId   String
+  content   String
+  status    AiPromptVersionStatus @default(DRAFT)
+
+  agent     AiAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+}
+
+model CampaignAiConfig {
+  id         String @id @default(cuid())
+  campaignId String @unique
+  agentId    String
+
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  agent      AiAgent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+}
+
+model ConversationAiState {
+  id             String   @id @default(cuid())
+  conversationId String   @unique
+  agentId        String
+  currentStageId String?
+  contextSummary String?
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  agent          AiAgent      @relation(fields: [agentId], references: [id], onDelete: Cascade)
 }
