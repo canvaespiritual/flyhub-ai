@@ -920,12 +920,13 @@ if (
     }
   } catch (error) {
     request.log.error(
-      {
-        error,
-        conversationId: baseData.conversation.id
-      },
-      'Failed to run AI orchestrator for inbound WhatsApp message'
-    )
+  {
+    error: error instanceof Error ? error.message : error,
+    stack: error instanceof Error ? error.stack : null,
+    conversationId: baseData.conversation.id
+  },
+  'Failed to run AI orchestrator for inbound WhatsApp message'
+)
   }
 }
 
