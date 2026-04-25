@@ -500,13 +500,27 @@ export async function runConversationAutomation(params: {
   }
 
   
-  if (!conversation.nextAutomationAt || conversation.nextAutomationAt.getTime() > now.getTime()) {
-    console.log('[AUTOMATION_RUN_SKIPPED_NOT_DUE_YET]', {
-      conversationId: conversation.id,
-      nextAutomationAt: conversation.nextAutomationAt?.toISOString()
-    })
-    return
-  }
+  if (
+  !conversation.nextAutomationAt &&
+  conversation.currentAutomationStepOrder == null
+) {
+  console.log('[AUTOMATION_RUN_SKIPPED_NOT_DUE_YET]', {
+    conversationId: conversation.id,
+    nextAutomationAt: null
+  })
+  return
+}
+
+if (
+  conversation.nextAutomationAt &&
+  conversation.nextAutomationAt.getTime() > now.getTime()
+) {
+  console.log('[AUTOMATION_RUN_SKIPPED_NOT_DUE_YET]', {
+    conversationId: conversation.id,
+    nextAutomationAt: conversation.nextAutomationAt.toISOString()
+  })
+  return
+}
 
   if (conversation.automationKind !== 'INITIAL_SEQUENCE') {
     console.log('[AUTOMATION_RUN_SKIPPED_KIND]', {
