@@ -28,6 +28,11 @@ const dashboardItems: SidebarItem[] = [
     roles: ['manager', 'admin']
   },
   {
+  label: 'IA',
+  href: '/dashboard/ai',
+  roles: ['admin']
+},
+  {
     label: 'Configurações',
     href: '/dashboard/settings',
     roles: ['manager', 'admin']

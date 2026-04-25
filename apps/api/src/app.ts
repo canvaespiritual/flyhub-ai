@@ -14,6 +14,7 @@ import { presenceRoutes } from './routes/presence.js'
 import { whatsappWebhookRoutes } from './routes/whatsapp-webhook.js'
 import { campaignDistributionRoutes } from './routes/campaign-distribution.js'
 import { phoneNumberRoutes } from './routes/phone-numbers.js'
+import { aiAgentRoutes } from './routes/ai-agents.js'
 
 
 export async function buildApp() {
@@ -70,6 +71,7 @@ export async function buildApp() {
   await app.register(userRoutes, { prefix: '/api' })
   await app.register(campaignRoutes, { prefix: '/api' })
   await app.register(phoneNumberRoutes, { prefix: '/api' })
+  await app.register(aiAgentRoutes, { prefix: '/api' })
   await app.register(campaignDistributionRoutes, { prefix: '/api' })
   await app.register(presenceRoutes, { prefix: '/api' })
   await app.register(whatsappWebhookRoutes, { prefix: '/api' })

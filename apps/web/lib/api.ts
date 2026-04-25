@@ -629,3 +629,112 @@ export async function updatePhoneNumber(
 
   return res.json()
 }
+
+export type AiResourceType =
+  | 'LINK'
+  | 'AUDIO'
+  | 'VIDEO'
+  | 'IMAGE'
+  | 'PDF'
+  | 'DOCUMENT'
+  | 'TEXT'
+
+export type AiKnowledgeTableType =
+  | 'SIMULATION'
+  | 'DOCUMENTS'
+  | 'PRICING'
+  | 'FAQ'
+  | 'CUSTOM'
+
+export type AiFollowupWindowType =
+  | 'SERVICE_24H'
+  | 'ENTRY_POINT_72H'
+  | 'TEMPLATE_AFTER_WINDOW'
+
+export type AiAgentPayload = {
+  name: string
+  slug?: string | null
+  description?: string | null
+  isActive?: boolean
+  model?: string
+  temperature?: number
+  maxContextMessages?: number
+  objective?: string | null
+  tone?: string | null
+  basePrompt?: string | null
+  safetyRules?: string | null
+  handoffRules?: string | null
+  businessRules?: string | null
+  stages?: any[]
+  objections?: any[]
+  resources?: any[]
+  knowledgeTables?: any[]
+  followupRules?: any[]
+  successExamples?: any[]
+}
+
+export async function getAiAgents() {
+  const res = await apiFetch(`${API_BASE_URL}/ai/agents`, {
+    cache: 'no-store'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao buscar agentes IA')
+  }
+
+  return res.json()
+}
+
+export async function getAiAgent(agentId: string) {
+  const res = await apiFetch(`${API_BASE_URL}/ai/agents/${agentId}`, {
+    cache: 'no-store'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao buscar agente IA')
+  }
+
+  return res.json()
+}
+
+export async function createAiAgent(payload: AiAgentPayload) {
+  const res = await apiFetch(`${API_BASE_URL}/ai/agents`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao criar agente IA')
+  }
+
+  return res.json()
+}
+
+export async function updateAiAgent(agentId: string, payload: Partial<AiAgentPayload>) {
+  const res = await apiFetch(`${API_BASE_URL}/ai/agents/${agentId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao atualizar agente IA')
+  }
+
+  return res.json()
+}
+
+export async function linkAiAgentToCampaign(payload: {
+  campaignId: string
+  agentId: string | null
+}) {
+  const res = await apiFetch(`${API_BASE_URL}/ai/campaign-link`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao vincular IA à campanha')
+  }
+
+  return res.json()
+}
