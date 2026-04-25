@@ -847,7 +847,10 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
               type: 'message:new',
               payload: mapRealtimeMessage(createdMessage)
             })
-            if (baseData.isNewConversation) {
+            const shouldStartInitialSequence =
+  baseData.isNewConversation && Boolean(baseData.conversation.campaignId)
+
+if (shouldStartInitialSequence) {
   try {
     await startInitialSequenceForConversation({
       conversationId: baseData.conversation.id
@@ -862,12 +865,21 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
     )
   }
 }
-if (
+
+const shouldRunAi =
   baseData.conversation.mode === 'AI' &&
-  !baseData.isNewConversation &&
+  !shouldStartInitialSequence &&
   baseData.conversation.automationStatus !== 'RUNNING'
-) {
+
+if (shouldRunAi) {
   try {
+    console.log('[AI_TRIGGERED]', {
+      conversationId: baseData.conversation.id,
+      isNewConversation: baseData.isNewConversation,
+      campaignId: baseData.conversation.campaignId,
+      automationStatus: baseData.conversation.automationStatus
+    })
+
     const aiResponse = await runAiOrchestrator({
       tenantId,
       conversationId: baseData.conversation.id,
@@ -920,13 +932,13 @@ if (
     }
   } catch (error) {
     request.log.error(
-  {
-    error: error instanceof Error ? error.message : error,
-    stack: error instanceof Error ? error.stack : null,
-    conversationId: baseData.conversation.id
-  },
-  'Failed to run AI orchestrator for inbound WhatsApp message'
-)
+      {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : null,
+        conversationId: baseData.conversation.id
+      },
+      'Failed to run AI orchestrator for inbound WhatsApp message'
+    )
   }
 }
 
