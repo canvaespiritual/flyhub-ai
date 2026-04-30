@@ -15,7 +15,8 @@ import { whatsappWebhookRoutes } from './routes/whatsapp-webhook.js'
 import { campaignDistributionRoutes } from './routes/campaign-distribution.js'
 import { phoneNumberRoutes } from './routes/phone-numbers.js'
 import { aiAgentRoutes } from './routes/ai-agents.js'
-
+import { masterTenantRoutes } from './routes/master-tenants.js'
+import { masterAdminRoutes } from './routes/master-admins.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -72,6 +73,8 @@ export async function buildApp() {
   await app.register(campaignRoutes, { prefix: '/api' })
   await app.register(phoneNumberRoutes, { prefix: '/api' })
   await app.register(aiAgentRoutes, { prefix: '/api' })
+  await app.register(masterTenantRoutes, { prefix: '/api' })
+  await app.register(masterAdminRoutes, { prefix: '/api' })
   await app.register(campaignDistributionRoutes, { prefix: '/api' })
   await app.register(presenceRoutes, { prefix: '/api' })
   await app.register(whatsappWebhookRoutes, { prefix: '/api' })

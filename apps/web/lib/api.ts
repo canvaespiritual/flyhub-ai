@@ -631,11 +631,79 @@ export async function updatePhoneNumber(
 }
 
 export async function activatePhoneNumber(id: string) {
-  const response = await apiFetch(`/phone-numbers/${id}/activate`, {
+  const res = await apiFetch(`${API_BASE_URL}/phone-numbers/${id}/activate`, {
     method: 'POST'
   })
 
-  return response
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao ativar número')
+  }
+
+  return res.json()
+}
+
+export type MasterTenant = {
+  id: string
+  name: string
+  slug?: string
+  isActive: boolean
+  timezone?: string
+  createdAt: string
+  updatedAt: string
+  usersCount: number
+  phoneNumbersCount: number
+  campaignsCount: number
+  conversationsCount: number
+}
+
+export type MasterTenantPayload = {
+  name: string
+  slug?: string | null
+  timezone?: string | null
+  isActive?: boolean
+}
+
+export async function getMasterTenants(): Promise<MasterTenant[]> {
+  const res = await apiFetch(`${API_BASE_URL}/master/tenants`, {
+    cache: 'no-store'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao buscar operações')
+  }
+
+  return res.json()
+}
+
+export async function createMasterTenant(
+  payload: MasterTenantPayload
+): Promise<MasterTenant> {
+  const res = await apiFetch(`${API_BASE_URL}/master/tenants`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao criar operação')
+  }
+
+  return res.json()
+}
+
+export async function updateMasterTenant(
+  tenantId: string,
+  payload: Partial<MasterTenantPayload>
+): Promise<MasterTenant> {
+  const res = await apiFetch(`${API_BASE_URL}/master/tenants/${tenantId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao atualizar operação')
+  }
+
+  return res.json()
 }
 
 export type AiResourceType =
@@ -742,6 +810,55 @@ export async function linkAiAgentToCampaign(payload: {
 
   if (!res.ok) {
     throw await parseApiError(res, 'Erro ao vincular IA à campanha')
+  }
+
+  return res.json()
+}
+
+export type MasterAdmin = {
+  id: string
+  name: string
+  email: string
+  tenantId: string
+  isActive: boolean
+  createdAt: string
+  tenant: {
+    id: string
+    name: string
+    slug?: string
+    isActive: boolean
+  }
+}
+
+export type MasterAdminPayload = {
+  tenantId: string
+  name: string
+  email: string
+  password: string
+}
+
+export async function getMasterAdmins(): Promise<MasterAdmin[]> {
+  const res = await apiFetch(`${API_BASE_URL}/master/admins`, {
+    cache: 'no-store'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao buscar admins')
+  }
+
+  return res.json()
+}
+
+export async function createMasterAdmin(
+  payload: MasterAdminPayload
+): Promise<MasterAdmin> {
+  const res = await apiFetch(`${API_BASE_URL}/master/admins`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao criar admin')
   }
 
   return res.json()
