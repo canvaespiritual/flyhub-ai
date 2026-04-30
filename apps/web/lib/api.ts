@@ -630,6 +630,14 @@ export async function updatePhoneNumber(
   return res.json()
 }
 
+export async function activatePhoneNumber(id: string) {
+  const response = await apiFetch(`/phone-numbers/${id}/activate`, {
+    method: 'POST'
+  })
+
+  return response
+}
+
 export type AiResourceType =
   | 'LINK'
   | 'AUDIO'

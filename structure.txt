@@ -1,86 +1,122 @@
-﻿+-- apps
-|   +-- apps\api
-|   |   +-- apps\api\prisma
-|   |   |   +-- apps\api\prisma\migrations
-|   |   |   |   +-- apps\api\prisma\migrations\20260411200130_init
-|   |   |   |   |   \-- apps\api\prisma\migrations\20260411200130_init\migration.sql
-|   |   |   |   +-- apps\api\prisma\migrations\20260411204832_multi_tenant
-|   |   |   |   |   \-- apps\api\prisma\migrations\20260411204832_multi_tenant\migration.sql
-|   |   |   |   +-- apps\api\prisma\migrations\20260411224247_message_model_v2
-|   |   |   |   |   \-- apps\api\prisma\migrations\20260411224247_message_model_v2\migration.sql
-|   |   |   |   \-- apps\api\prisma\migrations\migration_lock.toml
-|   |   |   +-- apps\api\prisma\schema.prisma
-|   |   |   \-- apps\api\prisma\seed.ts
-|   |   +-- apps\api\src
-|   |   |   +-- apps\api\src\lib
-|   |   |   |   +-- apps\api\src\lib\prisma.ts
-|   |   |   |   \-- apps\api\src\lib\realtime.ts
-|   |   |   +-- apps\api\src\routes
-|   |   |   |   +-- apps\api\src\routes\conversations.ts
-|   |   |   |   +-- apps\api\src\routes\health.ts
-|   |   |   |   +-- apps\api\src\routes\messages.ts
-|   |   |   |   \-- apps\api\src\routes\realtime.ts
-|   |   |   +-- apps\api\src\app.ts
-|   |   |   \-- apps\api\src\server.ts
-|   |   +-- apps\api\.env
-|   |   +-- apps\api\.env.example
-|   |   +-- apps\api\package.json
-|   |   \-- apps\api\tsconfig.json
-|   \-- apps\web
-|       +-- apps\web\app
-|       |   +-- apps\web\app\dashboard
-|       |   |   \-- apps\web\app\dashboard\page.tsx
-|       |   +-- apps\web\app\favicon.ico
-|       |   +-- apps\web\app\globals.css
-|       |   +-- apps\web\app\layout.tsx
-|       |   \-- apps\web\app\page.tsx
-|       +-- apps\web\components
-|       |   \-- apps\web\components\dashboard
-|       |       +-- apps\web\components\dashboard\ChatComposer.tsx
-|       |       +-- apps\web\components\dashboard\ChatWindow.tsx
-|       |       +-- apps\web\components\dashboard\ConversationList.tsx
-|       |       +-- apps\web\components\dashboard\LeadSidebar.tsx
-|       |       \-- apps\web\components\dashboard\MessageBubble.tsx
-|       +-- apps\web\lib
-|       |   +-- apps\web\lib\chat
-|       |   |   +-- apps\web\lib\chat\conversation-utils.ts
-|       |   |   \-- apps\web\lib\chat\message-utils.ts
-|       |   \-- apps\web\lib\api.ts
-|       +-- apps\web\mock
-|       |   +-- apps\web\mock\conversations.ts
-|       |   +-- apps\web\mock\lead.ts
-|       |   \-- apps\web\mock\messages.ts
-|       +-- apps\web\public
-|       |   +-- apps\web\public\file.svg
-|       |   +-- apps\web\public\globe.svg
-|       |   +-- apps\web\public\next.svg
-|       |   +-- apps\web\public\vercel.svg
-|       |   \-- apps\web\public\window.svg
-|       +-- apps\web\.env.local
-|       +-- apps\web\.gitignore
-|       +-- apps\web\AGENTS.md
-|       +-- apps\web\CLAUDE.md
-|       +-- apps\web\eslint.config.mjs
-|       +-- apps\web\next.config.ts
-|       +-- apps\web\next-env.d.ts
-|       +-- apps\web\package.json
-|       +-- apps\web\postcss.config.mjs
-|       +-- apps\web\README.md
-|       \-- apps\web\tsconfig.json
-+-- docs
-+-- infra
-+-- packages
-|   \-- packages\shared
-|       +-- packages\shared\src
-|       |   +-- packages\shared\src\chat.ts
-|       |   +-- packages\shared\src\conversation.ts
-|       |   +-- packages\shared\src\index.ts
-|       |   \-- packages\shared\src\lead.ts
-|       +-- packages\shared\package.json
-|       \-- packages\shared\tsconfig.json
-+-- package.json
-+-- pnpm-lock.yaml
-+-- pnpm-workspace.yaml
-+-- PROJECT_STRUCTURE.md
-+-- structure.txt
-\-- tsconfig.base.json
+﻿📁 apps\api
+📁 apps\web
+📁 apps\api\prisma
+📁 apps\api\src
+📄 apps\api\.env
+📄 apps\api\.env.example
+📄 apps\api\nixpacks.toml
+📄 apps\api\package.json
+📄 apps\api\tsconfig.json
+📁 apps\api\prisma\migrations
+📄 apps\api\prisma\manual-migration-2026-04-22-ops.sql
+📄 apps\api\prisma\manual-migration-2026-04-23-queue-timeout.sql
+📄 apps\api\prisma\manual-migration-2026-04-23-shift.sql
+📄 apps\api\prisma\manual_add_ai_agent_system.sql
+📄 apps\api\prisma\manual_add_campaign_routing.sql
+📄 apps\api\prisma\manual_add_conversation_automation_foundation.sql
+📄 apps\api\prisma\manual_add_whatsapp_connections.sql
+📄 apps\api\prisma\manual_fix_stuck_initial_automations.sql
+📄 apps\api\prisma\manual_link_flyimob_ai_to_campaigns.sql
+📄 apps\api\prisma\manual_seed_ai_agent_flyimob.sql
+📄 apps\api\prisma\schema.prisma
+📄 apps\api\prisma\seed.ts
+📁 apps\api\prisma\migrations\20260411200130_init
+📁 apps\api\prisma\migrations\20260411204832_multi_tenant
+📁 apps\api\prisma\migrations\20260411224247_message_model_v2
+📄 apps\api\prisma\migrations\migration_lock.toml
+📄 apps\api\prisma\migrations\20260411200130_init\migration.sql
+📄 apps\api\prisma\migrations\20260411204832_multi_tenant\migration.sql
+📄 apps\api\prisma\migrations\20260411224247_message_model_v2\migration.sql
+📁 apps\api\src\lib
+📁 apps\api\src\routes
+📄 apps\api\src\app.ts
+📄 apps\api\src\server.ts
+📁 apps\api\src\lib\ai
+📄 apps\api\src\lib\assignment-policy.ts
+📄 apps\api\src\lib\audio-conversion.ts
+📄 apps\api\src\lib\auth.ts
+📄 apps\api\src\lib\auto-assignment.ts
+📄 apps\api\src\lib\campaign-routing.ts
+📄 apps\api\src\lib\conversation-automation.ts
+📄 apps\api\src\lib\presence-policy.ts
+📄 apps\api\src\lib\prisma.ts
+📄 apps\api\src\lib\realtime.ts
+📄 apps\api\src\lib\routing-policy.ts
+📄 apps\api\src\lib\storage.ts
+📄 apps\api\src\lib\whatsapp.ts
+📄 apps\api\src\lib\ai\ai-client.ts
+📄 apps\api\src\lib\ai\ai-orchestrator.ts
+📄 apps\api\src\lib\ai\ai-types.ts
+📄 apps\api\src\routes\ai-agents.ts
+📄 apps\api\src\routes\auth.ts
+📄 apps\api\src\routes\campaigns.ts
+📄 apps\api\src\routes\conversations.ts
+📄 apps\api\src\routes\health.ts
+📄 apps\api\src\routes\messages.ts
+📄 apps\api\src\routes\phone-numbers.ts
+📄 apps\api\src\routes\presence.ts
+📄 apps\api\src\routes\realtime.ts
+📄 apps\api\src\routes\users.ts
+📄 apps\api\src\routes\whatsapp-webhook.ts
+📁 apps\web\app
+📁 apps\web\components
+📁 apps\web\lib
+📁 apps\web\mock
+📁 apps\web\public
+📄 apps\web\.env.local
+📄 apps\web\AGENTS.md
+📄 apps\web\CLAUDE.md
+📄 apps\web\eslint.config.mjs
+📄 apps\web\next-env.d.ts
+📄 apps\web\next.config.ts
+📄 apps\web\package.json
+📄 apps\web\postcss.config.mjs
+📄 apps\web\README.md
+📄 apps\web\tsconfig.json
+📁 apps\web\app\dashboard
+📁 apps\web\app\master
+📄 apps\web\app\favicon.ico
+📄 apps\web\app\globals.css
+📄 apps\web\app\layout.tsx
+📄 apps\web\app\page.tsx
+📁 apps\web\app\dashboard\ai
+📁 apps\web\app\dashboard\campaigns
+📁 apps\web\app\dashboard\phone-numbers
+📁 apps\web\app\dashboard\settings
+📄 apps\web\app\dashboard\page.tsx
+📄 apps\web\app\dashboard\ai\page.tsx
+📄 apps\web\app\dashboard\campaigns\CampaignForm.tsx
+📄 apps\web\app\dashboard\campaigns\CampaignList.tsx
+📄 apps\web\app\dashboard\campaigns\page.tsx
+📄 apps\web\app\dashboard\phone-numbers\page.tsx
+📁 apps\web\app\dashboard\settings\users
+📄 apps\web\app\dashboard\settings\page.tsx
+📄 apps\web\app\dashboard\settings\users\page.tsx
+📁 apps\web\app\master\admins
+📁 apps\web\app\master\operations
+📄 apps\web\app\master\page.tsx
+📄 apps\web\app\master\admins\page.tsx
+📄 apps\web\app\master\operations\page.tsx
+📁 apps\web\components\dashboard
+📁 apps\web\components\layout
+📄 apps\web\components\dashboard\ChatComposer.tsx
+📄 apps\web\components\dashboard\ChatWindow.tsx
+📄 apps\web\components\dashboard\ConversationList.tsx
+📄 apps\web\components\dashboard\LeadSidebar.tsx
+📄 apps\web\components\dashboard\MessageBubble.tsx
+📄 apps\web\components\layout\AppShell.tsx
+📄 apps\web\components\layout\AppSidebar.tsx
+📄 apps\web\components\layout\AppTopbar.tsx
+📁 apps\web\lib\chat
+📄 apps\web\lib\api.ts
+📄 apps\web\lib\routing-policy.ts
+📄 apps\web\lib\chat\conversation-utils.ts
+📄 apps\web\lib\chat\message-utils.ts
+📄 apps\web\mock\conversations.ts
+📄 apps\web\mock\lead.ts
+📄 apps\web\mock\messages.ts
+📄 apps\web\public\file.svg
+📄 apps\web\public\globe.svg
+📄 apps\web\public\next.svg
+📄 apps\web\public\vercel.svg
+📄 apps\web\public\window.svg

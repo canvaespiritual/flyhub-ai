@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import {
+  activatePhoneNumber,
   createPhoneNumber,
   getPhoneNumberOptions,
   getPhoneNumbers,
@@ -75,8 +76,12 @@ export default function PhoneNumbersPage() {
               </div>
 
               <div className="text-xs text-neutral-500">
-                WABA: {phoneNumber.wabaId || phoneNumber.providerAccountId || '—'}
-              </div>
+                  WABA ID: {phoneNumber.wabaId || phoneNumber.providerAccountId || '—'}
+                </div>
+
+                <div className="text-xs text-neutral-500">
+                  Conexão: {phoneNumber.connectionName || phoneNumber.label || '—'}
+                </div>
 
               <div className="text-xs mt-1">
                 <span
@@ -86,7 +91,11 @@ export default function PhoneNumbersPage() {
                       : 'text-yellow-400'
                   }
                 >
-                  Token: {phoneNumber.hasAccessToken ? 'configurado' : 'fallback/global'}
+                      Token: {
+      phoneNumber.hasAccessToken
+        ? 'próprio (WABA)'
+        : 'NÃO CONFIGURADO ⚠️'
+    }
                 </span>
 
                 <span className="text-neutral-500">
@@ -142,6 +151,8 @@ function PhoneNumberForm({
   const [isActive, setIsActive] = useState(true)
   const [isDefault, setIsDefault] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [activating, setActivating] = useState(false)
+  const [activateMessage, setActivateMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (phoneNumber?.id) {
@@ -193,7 +204,24 @@ function PhoneNumberForm({
       setSaving(false)
     }
   }
+async function handleActivate() {
+  if (!phoneNumber?.id) return
 
+  setActivating(true)
+  setActivateMessage(null)
+
+  try {
+    await activatePhoneNumber(phoneNumber.id)
+    setActivateMessage('Número ativado com sucesso.')
+    onSuccess?.()
+  } catch (error: any) {
+    setActivateMessage(
+      error?.message || 'Falha ao ativar número. Verifique token, WABA ID e Phone Number ID.'
+    )
+  } finally {
+    setActivating(false)
+  }
+}
   return (
     <form onSubmit={handleSubmit} className="space-y-4 text-white">
       <div>
@@ -202,8 +230,8 @@ function PhoneNumberForm({
         </h2>
 
         <p className="text-sm text-neutral-400 mt-1">
-          Cadastre o número real da WABA com Phone Number ID, WABA ID e token.
-        </p>
+        Cada número pertence a uma WABA. O token é compartilhado por todos os números da mesma WABA.
+      </p>
       </div>
 
       <div>
@@ -261,10 +289,10 @@ function PhoneNumberForm({
           onChange={(e) => setAccessToken(e.target.value)}
           className="w-full p-2 bg-black rounded border border-neutral-700 min-h-24"
           placeholder={
-            phoneNumber?.id
-              ? 'Deixe vazio para manter o token atual/fallback'
-              : 'Cole o token definitivo aqui'
-          }
+  phoneNumber?.id
+    ? 'Deixe vazio para manter o token atual da WABA'
+    : 'Cole o token definitivo da WABA aqui'
+}
         />
 
         {phoneNumber?.hasAccessToken && (
@@ -273,7 +301,9 @@ function PhoneNumberForm({
           </div>
         )}
       </div>
-
+        <div className="text-xs text-yellow-400 mt-2">
+  ⚠️ Se dois números usarem a mesma WABA, eles compartilham o mesmo token.
+</div>
       <div>
         <label className="block text-sm font-medium mb-1">Manager</label>
         <select
@@ -315,6 +345,36 @@ function PhoneNumberForm({
       >
         {saving ? 'Salvando...' : phoneNumber?.id ? 'Salvar alterações' : 'Cadastrar número'}
       </button>
+      {phoneNumber?.id && (
+  <div className="border border-neutral-700 rounded p-3 space-y-2">
+    <div className="text-sm font-semibold">Ativação WhatsApp Cloud API</div>
+
+    <div className="text-xs text-neutral-400">
+      Executa o registro do Phone Number ID e assina a WABA no app para receber webhooks.
+    </div>
+
+    <button
+      type="button"
+      onClick={handleActivate}
+      disabled={activating || !phoneNumber.hasAccessToken}
+      className="bg-purple-600 text-white px-4 py-2 rounded font-semibold disabled:opacity-60"
+    >
+      {activating ? 'Ativando...' : 'Ativar número'}
+    </button>
+
+    {!phoneNumber.hasAccessToken && (
+      <div className="text-xs text-yellow-400">
+        Configure o token definitivo da WABA antes de ativar.
+      </div>
+    )}
+
+    {activateMessage && (
+      <div className="text-xs text-neutral-300">
+        {activateMessage}
+      </div>
+    )}
+  </div>
+)}
     </form>
   )
 }

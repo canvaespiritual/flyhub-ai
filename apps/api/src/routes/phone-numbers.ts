@@ -2,6 +2,10 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { getSessionFromRequest } from '../lib/auth.js'
 import { prisma } from '../lib/prisma.js'
+import {
+  registerWhatsAppPhoneNumber,
+  subscribeWhatsAppBusinessAccount
+} from '../lib/whatsapp.js'
 
 const phoneNumberParamsSchema = z.object({
   id: z.string().min(1)
@@ -396,6 +400,163 @@ export async function phoneNumberRoutes(app: FastifyInstance) {
     })
 
     return reply.status(201).send(serializePhoneNumber(phoneNumber))
+  })
+
+    app.post('/phone-numbers/:id/activate', async (request, reply) => {
+    const session = await getSessionFromRequest(request)
+
+    if (!session) {
+      return reply.status(401).send({
+        message: 'Não autenticado'
+      })
+    }
+
+    const currentUserRole = session.user.role
+    const tenantId = session.user.tenantId
+
+    if (
+      currentUserRole !== 'MASTER' &&
+      currentUserRole !== 'ADMIN' &&
+      currentUserRole !== 'MANAGER'
+    ) {
+      return reply.status(403).send({
+        message: 'Sem permissão para ativar número'
+      })
+    }
+
+    const parsedParams = phoneNumberParamsSchema.safeParse(request.params)
+
+    if (!parsedParams.success) {
+      return reply.status(400).send({
+        message: 'Invalid phone number id'
+      })
+    }
+
+    const { id } = parsedParams.data
+
+    const phoneNumber = await prisma.phoneNumber.findFirst({
+      where: {
+        id,
+        tenantId
+      },
+      include: {
+        whatsappConnection: true
+      }
+    })
+
+    if (!phoneNumber) {
+      return reply.status(404).send({
+        message: 'Phone number not found'
+      })
+    }
+
+    if (!phoneNumber.externalId) {
+      return reply.status(400).send({
+        message: 'Phone number externalId não configurado'
+      })
+    }
+
+    const wabaId =
+      phoneNumber.whatsappConnection?.wabaId ??
+      phoneNumber.providerAccountId
+
+    if (!wabaId) {
+      return reply.status(400).send({
+        message: 'WABA ID não configurado'
+      })
+    }
+
+    const accessToken = phoneNumber.whatsappConnection?.accessToken?.trim() || null
+
+if (!accessToken) {
+  return reply.status(400).send({
+    ok: false,
+    message:
+      'Token definitivo da WABA não configurado. Edite a conexão/número e informe o access token antes de ativar.'
+  })
+}
+
+const pin = '123456'
+
+    try {
+      const registerResult = await registerWhatsAppPhoneNumber({
+        phoneNumberId: phoneNumber.externalId,
+        pin,
+        accessToken
+      })
+
+      const subscribeResult = await subscribeWhatsAppBusinessAccount({
+        wabaId,
+        accessToken
+      })
+
+      const updated = await prisma.phoneNumber.update({
+        where: {
+          id: phoneNumber.id
+        },
+        data: {
+          connectionStatus: 'CONNECTED',
+          isActive: true
+        },
+        include: {
+          whatsappConnection: {
+            select: {
+              id: true,
+              wabaId: true,
+              accessToken: true,
+              status: true
+            }
+          },
+          manager: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true
+            }
+          },
+          _count: {
+            select: {
+              campaigns: true,
+              conversations: true
+            }
+          }
+        }
+      })
+
+      return reply.send({
+        ok: true,
+        register: registerResult,
+        subscribedApps: subscribeResult,
+        phoneNumber: serializePhoneNumber(updated)
+      })
+    } catch (error) {
+      await prisma.phoneNumber.update({
+        where: {
+          id: phoneNumber.id
+        },
+        data: {
+          connectionStatus: 'ERROR'
+        }
+      })
+
+      request.log.error(
+        {
+          error: error instanceof Error ? error.message : error,
+          phoneNumberId: phoneNumber.externalId,
+          wabaId
+        },
+        'Failed to activate WhatsApp phone number'
+      )
+
+      return reply.status(502).send({
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Falha ao ativar número no WhatsApp'
+      })
+    }
   })
 
   app.patch('/phone-numbers/:id', async (request, reply) => {

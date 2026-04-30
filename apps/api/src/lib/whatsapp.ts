@@ -1,4 +1,4 @@
-const WHATSAPP_API_URL = 'https://graph.facebook.com/v19.0'
+const WHATSAPP_API_URL = 'https://graph.facebook.com/v21.0'
 
 type WhatsAppMediaMessageType = 'audio' | 'image' | 'document' | 'video'
 
@@ -13,13 +13,30 @@ function tryFixBrazilPhone(phone: string) {
 function getWhatsAppAccessToken(accessToken?: string | null) {
   return accessToken || process.env.WHATSAPP_ACCESS_TOKEN
 }
-
-function getWhatsAppAuthHeaders(contentType?: 'json', accessToken?: string | null) {
+function requireWhatsAppAccessToken(accessToken?: string | null) {
   const token = getWhatsAppAccessToken(accessToken)
 
   if (!token) {
     throw new Error('WhatsApp access token not configured')
   }
+
+  return token
+}
+
+async function readWhatsAppJson(response: Response) {
+  const text = await response.text()
+
+  if (!text) return null
+
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { raw: text }
+  }
+}
+
+function getWhatsAppAuthHeaders(contentType?: 'json', accessToken?: string | null) {
+  const token = requireWhatsAppAccessToken(accessToken)
 
   return {
     Authorization: `Bearer ${token}`,
@@ -28,11 +45,7 @@ function getWhatsAppAuthHeaders(contentType?: 'json', accessToken?: string | nul
 }
 
 function getWhatsAppUploadAuthHeaders(accessToken?: string | null) {
-  const token = getWhatsAppAccessToken(accessToken)
-
-  if (!token) {
-    throw new Error('WhatsApp access token not configured')
-  }
+  const token = requireWhatsAppAccessToken(accessToken)
 
   return {
     Authorization: `Bearer ${token}`
@@ -312,4 +325,61 @@ export async function downloadWhatsAppMediaFile(mediaUrl: string) {
   const arrayBuffer = await response.arrayBuffer()
 
   return Buffer.from(arrayBuffer)
+}
+export async function registerWhatsAppPhoneNumber(params: {
+  phoneNumberId: string
+  pin: string
+  accessToken?: string | null
+}) {
+  const token = requireWhatsAppAccessToken(params.accessToken)
+
+  const response = await fetch(
+    `${WHATSAPP_API_URL}/${params.phoneNumberId}/register`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        pin: params.pin
+      })
+    }
+  )
+
+  const data = await readWhatsAppJson(response)
+
+  if (!response.ok) {
+    throw new Error(`WhatsApp register error: ${JSON.stringify(data)}`)
+  }
+
+  return data as { success?: boolean }
+}
+
+export async function subscribeWhatsAppBusinessAccount(params: {
+  wabaId: string
+  accessToken?: string | null
+}) {
+  const token = requireWhatsAppAccessToken(params.accessToken)
+
+  const response = await fetch(
+    `${WHATSAPP_API_URL}/${params.wabaId}/subscribed_apps`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
+    }
+  )
+
+  const data = await readWhatsAppJson(response)
+
+  if (!response.ok) {
+    throw new Error(`WhatsApp subscribed_apps error: ${JSON.stringify(data)}`)
+  }
+
+  return data as { success?: boolean }
 }
