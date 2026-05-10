@@ -1021,9 +1021,18 @@ if (shouldRunAi) {
       }
 
       return reply.status(200).send({ ok: true })
-    } catch (error) {
-      request.log.error({ error }, 'Error processing WhatsApp webhook')
-      return reply.status(500).send({ ok: false })
-    }
+    } catch (error: any) {
+  app.log.error(
+    {
+      message: error?.message,
+      stack: error?.stack,
+      name: error?.name,
+      error,
+    },
+    'Error processing WhatsApp webhook'
+  )
+
+  reply.status(500).send()
+}
   })
 }
