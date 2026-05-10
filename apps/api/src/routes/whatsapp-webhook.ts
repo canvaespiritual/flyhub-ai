@@ -766,7 +766,8 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
 
               try {
                 const mediaMetadata = await getWhatsAppMediaMetadata(
-                  media.providerMediaId
+                  media.providerMediaId,
+                  whatsappAccessToken
                 )
 
                 const resolvedSize = Number(mediaMetadata.file_size ?? 0)
@@ -786,7 +787,8 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
                   finalContent = getTooLargeFallback(media.kind)
                 } else {
                   const fileBuffer = await downloadWhatsAppMediaFile(
-                    mediaMetadata.url
+                    mediaMetadata.url,
+                    whatsappAccessToken
                   )
 
                   resolvedMimeType =
