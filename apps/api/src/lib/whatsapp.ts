@@ -291,12 +291,13 @@ export async function sendWhatsAppMediaMessage(params: {
 export async function markWhatsAppMessageAsRead(params: {
   phoneNumberId: string
   messageId: string
+  accessToken?: string | null
 }) {
   const url = `${WHATSAPP_API_URL}/${params.phoneNumberId}/messages`
 
   await fetch(url, {
     method: 'POST',
-    headers: getWhatsAppAuthHeaders('json'),
+    headers: getWhatsAppAuthHeaders('json', params.accessToken),
     body: JSON.stringify({
       messaging_product: 'whatsapp',
       status: 'read',

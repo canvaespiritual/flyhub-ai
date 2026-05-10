@@ -553,10 +553,14 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
               continue
             }
 
+                        const whatsappAccessToken =
+              phoneNumber.whatsappConnection?.accessToken ?? null
+
             if (phoneNumber.externalId) {
               await markWhatsAppMessageAsRead({
                 phoneNumberId: phoneNumber.externalId,
-                messageId: inboundExternalId
+                messageId: inboundExternalId,
+                accessToken: whatsappAccessToken
               })
             }
 
