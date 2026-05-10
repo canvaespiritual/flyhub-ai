@@ -4,12 +4,17 @@ type Props = {
   sidebar: ReactNode
   topbar: ReactNode
   children: ReactNode
+  sidebarCollapsed?: boolean
 }
 
-export function AppShell({ sidebar, topbar, children }: Props) {
+export function AppShell({ sidebar, topbar, children, sidebarCollapsed = false }: Props) {
   return (
-    <main className="flex h-screen bg-[#0b141a] text-white">
-      <aside className="hidden w-[260px] shrink-0 border-r border-neutral-800 bg-[#111b21] lg:block">
+    <main className="flex h-screen bg-[#0b141a] text-white overflow-hidden">
+      <aside
+        className={`hidden shrink-0 border-r border-neutral-800 bg-[#111b21] transition-all duration-200 lg:block ${
+          sidebarCollapsed ? 'w-[76px]' : 'w-[260px]'
+        }`}
+      >
         {sidebar}
       </aside>
 

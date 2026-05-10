@@ -280,6 +280,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const selectedConversationIdRef = useRef<string | null>(null)
 const currentUserRef = useRef<CurrentUser | null>(null)
 
@@ -515,21 +516,15 @@ console.log('[REALTIME_EVENT]', {
               upsertMessage(incomingMessage)
             }
 
-            let foundConversation = false
-
             setConversations((prev) => {
               const result = applyRealtimeMessageToConversationList(
                 prev,
                 incomingMessage,
                 selectedConversationIdRef.current
               )
-              foundConversation = result.foundConversation
+
               return result.nextConversations
             })
-
-            if (!foundConversation) {
-              await loadConversations()
-            }
 
             return
           }
@@ -766,7 +761,7 @@ console.log('[REALTIME_EVENT]', {
   }
 
   const desktopContent = !selectedConversation ? (
-    <div className="grid h-full grid-cols-[320px_1fr] xl:grid-cols-[320px_1fr_340px]">
+    <div className="grid h-full overflow-hidden grid-cols-[320px_1fr] xl:grid-cols-[320px_1fr_340px]">
       <ConversationList
         conversations={conversations}
         selectedConversationId={selectedConversationId}
@@ -787,7 +782,7 @@ console.log('[REALTIME_EVENT]', {
       <div className="hidden border-l border-neutral-800 xl:block" />
     </div>
   ) : (
-    <div className="grid h-full grid-cols-[320px_1fr] xl:grid-cols-[320px_1fr_340px]">
+    <div className="grid h-full overflow-hidden grid-cols-[320px_1fr] xl:grid-cols-[320px_1fr_340px]">
       <ConversationList
         conversations={conversations}
         selectedConversationId={selectedConversationId}
@@ -828,8 +823,10 @@ console.log('[REALTIME_EVENT]', {
     <>
       <div className="hidden lg:block">
         <AppShell
+        sidebarCollapsed={sidebarCollapsed}
           sidebar={
             <AppSidebar
+              collapsed={sidebarCollapsed}
               currentUserRole={currentUserRole}
               currentUserName={currentUser?.name}
               currentTenantName={currentUser?.tenantId}
@@ -838,6 +835,8 @@ console.log('[REALTIME_EVENT]', {
           topbar={
             <AppTopbar
               title="Atendimentos"
+              sidebarCollapsed={sidebarCollapsed}
+              onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
               currentUserName={currentUser?.name}
               currentUserRole={currentUserRole}
               onLogout={handleLogout}

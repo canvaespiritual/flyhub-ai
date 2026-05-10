@@ -8,6 +8,8 @@ type Props = {
   currentUserName?: string
   currentUserRole: UserRole
   onLogout: () => void
+  sidebarCollapsed?: boolean
+  onToggleSidebar?: () => void
 }
 
 function canSeeSettings(role: UserRole) {
@@ -18,14 +20,27 @@ export function AppTopbar({
   title,
   currentUserName,
   currentUserRole,
-  onLogout
+  onLogout,
+  sidebarCollapsed = false,
+  onToggleSidebar
 }: Props) {
   return (
     <header className="flex items-center justify-between gap-4 px-4 py-3">
-      <div className="min-w-0">
-        <h1 className="truncate text-sm font-semibold text-white md:text-base">
-          {title}
-        </h1>
+      <div className="flex min-w-0 items-center gap-3">
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          className="hidden rounded-md bg-[#202c33] px-3 py-2 text-xs text-white transition hover:bg-[#2a3942] lg:inline-flex"
+          title={sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}
+        >
+          {sidebarCollapsed ? '☰' : '←'}
+        </button>
+
+        <div className="min-w-0">
+          <h1 className="truncate text-sm font-semibold text-white md:text-base">
+            {title}
+          </h1>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 md:gap-3">
@@ -35,7 +50,7 @@ export function AppTopbar({
             className="rounded-md bg-[#202c33] px-3 py-2 text-xs text-white transition hover:bg-[#2a3942]"
             title="Abrir configurações"
           >
-            Engrenagem
+            ⚙️
           </Link>
         )}
 

@@ -175,7 +175,7 @@ const orderedConversations = useMemo(() => {
 }, [filteredConversations, currentUserId])
 
   return (
-    <aside className="border-r border-neutral-800 bg-[#111b21]">
+    <aside className="flex h-full flex-col border-r border-neutral-800 bg-[#111b21] overflow-hidden">
       <div className="border-b border-neutral-800 px-4 py-4 space-y-3">
   <h1 className="text-xl font-semibold text-white">Inbox</h1>
 
@@ -187,7 +187,7 @@ const orderedConversations = useMemo(() => {
   />
 </div>
 
-      <div className="space-y-1 px-2 pb-2">
+      <div className="flex-1 overflow-y-auto space-y-1 px-2 pb-2">
         {orderedConversations.map((conversation) => {
           const isSelected = conversation.id === selectedConversationId
           const isUnread = conversation.unreadCount > 0
