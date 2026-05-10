@@ -633,7 +633,8 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
         priority: 'NORMAL',
         waitingSince: inboundAt,
         lastMessageAt: inboundAt,
-        lastInboundAt: inboundAt
+        lastInboundAt: inboundAt,
+        updatedAt: inboundAt
       },
       include: {
         assignedUser: true,
@@ -668,6 +669,7 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
           : inboundAt,
         lastMessageAt: inboundAt,
         lastInboundAt: inboundAt,
+        updatedAt: inboundAt,
         campaignId: conversation.campaignId ?? incomingCampaignId,
         managerId: conversation.managerId ?? resolvedCampaign?.managerId ?? null
       },
@@ -936,7 +938,8 @@ if (shouldRunAi) {
         },
         data: {
           lastMessageAt: now,
-          lastOutboundAt: now
+          lastOutboundAt: now,
+          updatedAt: now
         }
       })
 

@@ -485,6 +485,7 @@ export async function messageRoutes(app: FastifyInstance) {
           data: {
             lastMessageAt: now,
             lastOutboundAt: now,
+            updatedAt: now,
             firstResponseAt: conversation.firstResponseAt ?? now
           }
         })
@@ -685,6 +686,7 @@ const storageUpload = await uploadBufferToStorage({
         data: {
           lastMessageAt: now,
           lastOutboundAt: now,
+          updatedAt: now,
           firstResponseAt: conversation.firstResponseAt ?? now
         }
       })
