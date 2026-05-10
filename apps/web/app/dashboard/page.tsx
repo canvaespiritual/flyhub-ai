@@ -105,7 +105,10 @@ function getWebSocketUrl() {
 }
 function sortConversationList(conversations: Conversation[]) {
   return [...conversations].sort((a, b) => {
-    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    const dateA = new Date(a.lastMessage?.createdAt ?? a.updatedAt).getTime()
+    const dateB = new Date(b.lastMessage?.createdAt ?? b.updatedAt).getTime()
+
+    return dateB - dateA
   })
 }
 

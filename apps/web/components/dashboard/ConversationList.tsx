@@ -124,14 +124,10 @@ function sortConversationsForOperation(
   currentUserId: string
 ) {
   return [...conversations].sort((a, b) => {
-    const rankA = getConversationRank(a, currentUserId)
-    const rankB = getConversationRank(b, currentUserId)
+    const dateA = new Date(a.lastMessage?.createdAt ?? a.updatedAt).getTime()
+    const dateB = new Date(b.lastMessage?.createdAt ?? b.updatedAt).getTime()
 
-    if (rankA !== rankB) {
-      return rankA - rankB
-    }
-
-    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    return dateB - dateA
   })
 }
 
