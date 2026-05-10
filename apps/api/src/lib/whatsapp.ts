@@ -306,10 +306,13 @@ export async function markWhatsAppMessageAsRead(params: {
   })
 }
 
-export async function getWhatsAppMediaMetadata(mediaId: string) {
+export async function getWhatsAppMediaMetadata(
+  mediaId: string,
+  accessToken?: string | null
+) {
   const response = await fetch(`${WHATSAPP_API_URL}/${mediaId}`, {
     method: 'GET',
-    headers: getWhatsAppAuthHeaders()
+    headers: getWhatsAppAuthHeaders(undefined, accessToken)
   })
 
   const data = await response.json()
@@ -329,10 +332,13 @@ export async function getWhatsAppMediaMetadata(mediaId: string) {
   }
 }
 
-export async function downloadWhatsAppMediaFile(mediaUrl: string) {
+export async function downloadWhatsAppMediaFile(
+  mediaUrl: string,
+  accessToken?: string | null
+) {
   const response = await fetch(mediaUrl, {
     method: 'GET',
-    headers: getWhatsAppAuthHeaders()
+    headers: getWhatsAppAuthHeaders(undefined, accessToken)
   })
 
   if (!response.ok) {
