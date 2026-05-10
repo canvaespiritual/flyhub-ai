@@ -168,6 +168,8 @@ function mapRealtimeMessage(message: {
   mimeType: string | null
   fileName: string | null
   durationSeconds: number | null
+  transcription: string | null
+  transcriptionStatus: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | null
   latitude: number | null
   longitude: number | null
   locationName: string | null
@@ -185,6 +187,8 @@ function mapRealtimeMessage(message: {
     mimeType: message.mimeType ?? undefined,
     fileName: message.fileName ?? undefined,
     durationSeconds: message.durationSeconds ?? undefined,
+    transcription: message.transcription ?? undefined,
+    transcriptionStatus: message.transcriptionStatus?.toLowerCase() ?? undefined,
     latitude: message.latitude ?? undefined,
     longitude: message.longitude ?? undefined,
     locationName: message.locationName ?? undefined,

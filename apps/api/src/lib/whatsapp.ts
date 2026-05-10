@@ -11,13 +11,30 @@ function tryFixBrazilPhone(phone: string) {
 }
 
 function getWhatsAppAccessToken(accessToken?: string | null) {
-  return accessToken || process.env.WHATSAPP_ACCESS_TOKEN
+  const normalizedAccessToken = accessToken?.trim()
+
+  if (normalizedAccessToken) {
+    return normalizedAccessToken
+  }
+
+  const allowEnvFallback =
+    process.env.NODE_ENV !== 'production' ||
+    process.env.ALLOW_WHATSAPP_ENV_FALLBACK === 'true'
+
+  if (allowEnvFallback) {
+    return process.env.WHATSAPP_ACCESS_TOKEN
+  }
+
+  return null
 }
+
 function requireWhatsAppAccessToken(accessToken?: string | null) {
   const token = getWhatsAppAccessToken(accessToken)
 
   if (!token) {
-    throw new Error('WhatsApp access token not configured')
+    throw new Error(
+      'WhatsApp access token not configured for this WABA. Configure WhatsAppConnection.accessToken or enable ALLOW_WHATSAPP_ENV_FALLBACK.'
+    )
   }
 
   return token

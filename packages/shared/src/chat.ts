@@ -8,6 +8,8 @@ export type MessageType =
 
 export type MessageStatus = 'queued' | 'sent' | 'delivered' | 'read' | 'failed'
 
+export type TranscriptionStatus = 'pending' | 'processing' | 'completed' | 'failed'
+
 export type MessageDirection = 'inbound' | 'outbound'
 
 export type SenderType = 'lead' | 'agent' | 'ai' | 'system'
@@ -37,8 +39,10 @@ export interface Message {
   mimeType?: string
   fileName?: string
   durationSeconds?: number
-    latitude?: number
+  latitude?: number
   longitude?: number
+  transcription?: string
+  transcriptionStatus?: TranscriptionStatus
   locationName?: string
   locationAddress?: string
 

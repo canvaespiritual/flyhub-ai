@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Message } from '@flyhub/shared'
 
 type Props = {
@@ -79,6 +80,7 @@ function getDocumentLabel(message: Message) {
 }
 
 export function MessageBubble({ message }: Props) {
+    const [showTranscription, setShowTranscription] = useState(false)
   const isOutgoing = isOutgoingMessage(message)
   const metaLabel = getMetaLabel(message)
   const statusChecks = isOutgoing ? getStatusChecks(message.status) : null

@@ -1107,3 +1107,13 @@ NÍVEL CONVERSA
 → Memória/resumo do lead (estado atual)
 
 EAAYUOZCYIwtYBRdFo16MVLHZCmMjsEZC85atsPmlhqiEYzG4vDcTfiDxnHCZBr59lbnLKLLsag9mCZCnpSRvxKoX2DWnZAVuLUxIZBADZAYelgLJNgLwYmQ3n0MtR0cmyg9CZAFDFmnKyDAXV9BnLZAimFORW6CtlXsOkInB40ybNy0pkQBVIfXjmwnWUROrYufAZDZD
+
+Aqui: codigo pra atualizar o structure: Get-ChildItem -Recurse apps | Where-Object {
+  $_.FullName -notmatch 'node_modules|\.next|dist|\.turbo|coverage|\.git|\.cache|build'
+} | ForEach-Object {
+  if ($_.PSIsContainer) {
+    "📁 " + $_.FullName.Replace((Get-Location).Path + "\", "")
+  } else {
+    "📄 " + $_.FullName.Replace((Get-Location).Path + "\", "")
+  }
+} | Out-File structure.txt -Encoding utf8

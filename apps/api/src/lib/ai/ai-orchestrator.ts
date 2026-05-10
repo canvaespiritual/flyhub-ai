@@ -1,7 +1,19 @@
 import { prisma } from '../prisma.js'
-import { generateAiResponse } from './ai-client.js'
+import { generateAiResponse, transcribeAudioBuffer } from './ai-client.js'
 import { buildAiMessages } from './ai-prompt-builder.js'
 import type { AiOrchestratorInput, AiGeneratedResponse } from './ai-types.js'
+
+async function downloadBufferFromUrl(url: string): Promise<Buffer> {
+  const response = await fetch(url)
+
+  if (!response.ok) {
+    throw new Error(`Audio download failed: ${response.status}`)
+  }
+
+  const arrayBuffer = await response.arrayBuffer()
+
+  return Buffer.from(arrayBuffer)
+}
 
 async function ensureMessageTextReady(input: AiOrchestratorInput) {
   const message = input.inboundMessage
@@ -14,12 +26,60 @@ async function ensureMessageTextReady(input: AiOrchestratorInput) {
     return message
   }
 
-  // Futuro:
-  // 1. baixar mídia do WhatsApp usando externalMediaId
-  // 2. converter se necessário
-  // 3. transcrever com OpenAI
-  // 4. salvar transcription + transcriptionStatus
-  return message
+  if (!message.mediaUrl) {
+    await prisma.message.update({
+      where: { id: message.id },
+      data: {
+        transcriptionStatus: 'FAILED'
+      }
+    })
+
+    return message
+  }
+
+  await prisma.message.update({
+    where: { id: message.id },
+    data: {
+      transcriptionStatus: 'PROCESSING'
+    }
+  })
+
+  try {
+    const audioBuffer = await downloadBufferFromUrl(message.mediaUrl)
+
+    const mimeType = message.mimeType || 'audio/ogg'
+    const fileName = message.fileName || `audio-${message.id}.ogg`
+
+    const transcription = await transcribeAudioBuffer({
+      buffer: audioBuffer,
+      fileName,
+      mimeType
+    })
+
+    return prisma.message.update({
+      where: { id: message.id },
+      data: {
+        transcription,
+        transcriptionStatus: 'COMPLETED',
+        content: transcription
+      }
+    })
+  } catch (error) {
+    console.error('[AI_AUDIO_TRANSCRIPTION_FAILED]', {
+      messageId: message.id,
+      conversationId: input.conversationId,
+      error
+    })
+
+    await prisma.message.update({
+      where: { id: message.id },
+      data: {
+        transcriptionStatus: 'FAILED'
+      }
+    })
+
+    return message
+  }
 }
 
 async function findAgentForConversation(input: AiOrchestratorInput) {

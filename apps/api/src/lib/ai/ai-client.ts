@@ -1,6 +1,7 @@
 import type { AiChatMessage, AiGeneratedResponse } from './ai-types.js'
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions'
+const OPENAI_TRANSCRIPTION_URL = 'https://api.openai.com/v1/audio/transcriptions'
 
 export async function generateAiResponse(params: {
   model: string
@@ -46,4 +47,53 @@ export async function generateAiResponse(params: {
   }
 
   return { content }
+}
+
+export async function transcribeAudioBuffer(params: {
+  buffer: Buffer
+  fileName: string
+  mimeType: string
+}): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY
+
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is not configured')
+  }
+
+  const formData = new FormData()
+
+  const blob = new Blob([new Uint8Array(params.buffer)], {
+    type: params.mimeType
+  })
+
+  formData.append('file', blob, params.fileName)
+  formData.append('model', 'gpt-4o-transcribe')
+  formData.append('response_format', 'text')
+  formData.append('language', 'pt')
+
+  const response = await fetch(OPENAI_TRANSCRIPTION_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: formData
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+
+    throw new Error(
+      `OpenAI transcription failed: ${response.status} ${errorText}`
+    )
+  }
+
+  const text = await response.text()
+
+  const transcription = text.trim()
+
+  if (!transcription) {
+    throw new Error('OpenAI returned empty transcription')
+  }
+
+  return transcription
 }
