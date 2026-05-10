@@ -417,6 +417,11 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
 
           const value = change.value
           if (!value) continue
+          app.log.info({
+            phoneNumberId: value?.metadata?.phone_number_id,
+            displayPhoneNumber: value?.metadata?.display_phone_number,
+            wabaId: entry?.id,
+          }, 'WHATSAPP WEBHOOK DEBUG')
 
           const phoneNumberId = value.metadata?.phone_number_id
           const displayPhoneNumber = value.metadata?.display_phone_number
