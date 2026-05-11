@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import type { UserRole } from '@flyhub/shared'
 
 type Props = {
@@ -10,6 +11,7 @@ type Props = {
   onLogout: () => void
   sidebarCollapsed?: boolean
   onToggleSidebar?: () => void
+  actions?: ReactNode
 }
 
 function canSeeSettings(role: UserRole) {
@@ -22,7 +24,8 @@ export function AppTopbar({
   currentUserRole,
   onLogout,
   sidebarCollapsed = false,
-  onToggleSidebar
+  onToggleSidebar,
+  actions
 }: Props) {
   return (
     <header className="flex items-center justify-between gap-4 px-4 py-3">
@@ -44,6 +47,7 @@ export function AppTopbar({
       </div>
 
       <div className="flex items-center gap-2 md:gap-3">
+        {actions}
         {canSeeSettings(currentUserRole) && (
           <Link
             href="/dashboard/settings"

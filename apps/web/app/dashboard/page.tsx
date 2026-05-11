@@ -20,7 +20,10 @@ import {
   getUsers,
   getMyPresence,
   updateMyPresence,
-  updateConversationMode
+  updateConversationMode,
+  getPushVapidPublicKey,
+  subscribeToPush,
+  sendPushTest
 } from '@/lib/api'
 import type { PresenceStatus, PresenceUser, User } from '@/lib/api'
 
@@ -146,6 +149,18 @@ function formatPhone(phone?: string) {
   }
 
   return phone
+}
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+
+  const base64 = (base64String + padding)
+    .replace(/-/g, '+')
+    .replace(/_/g, '/')
+
+  const rawData = window.atob(base64)
+
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)))
 }
 
 function canCurrentUserSeeConversation(
@@ -284,6 +299,8 @@ export default function DashboardPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [pushLoading, setPushLoading] = useState(false)
+  const [pushEnabled, setPushEnabled] = useState(false)
   const selectedConversationIdRef = useRef<string | null>(null)
 const currentUserRef = useRef<CurrentUser | null>(null)
 
@@ -398,7 +415,14 @@ useEffect(() => {
     async function bootstrap() {
       try {
         setLoading(true)
-
+                if ('serviceWorker' in navigator) {
+          try {
+            await navigator.serviceWorker.register('/sw.js')
+            console.log('[PUSH] service worker registrado')
+          } catch (error) {
+            console.error('[PUSH] erro ao registrar service worker', error)
+          }
+        }
         const auth = await getCurrentUser()
 
         if (!auth?.user) {
@@ -751,7 +775,56 @@ console.log('[REALTIME_EVENT]', {
   function handleBack() {
     setMobileView('list')
   }
+async function handleEnablePush() {
+  try {
+    setPushLoading(true)
+    setErrorMessage(null)
 
+    if (!('serviceWorker' in navigator)) {
+      throw new Error('Service Worker não suportado')
+    }
+
+    if (!('PushManager' in window)) {
+      throw new Error('Push API não suportada')
+    }
+
+    const registration = await navigator.serviceWorker.ready
+
+    const permission = await Notification.requestPermission()
+
+    if (permission !== 'granted') {
+      throw new Error('Permissão de notificação negada')
+    }
+
+    const vapidPublicKey = await getPushVapidPublicKey()
+
+    let subscription = await registration.pushManager.getSubscription()
+
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+      })
+    }
+
+    await subscribeToPush(subscription)
+
+    await sendPushTest()
+
+    setPushEnabled(true)
+    setSuccessMessage('Push ativado com sucesso')
+  } catch (error) {
+    console.error('[PUSH_ENABLE_ERROR]', error)
+
+    setErrorMessage(
+      error instanceof Error
+        ? error.message
+        : 'Erro ao ativar notificações'
+    )
+  } finally {
+    setPushLoading(false)
+  }
+}
   const currentUserRole = currentUser?.role ?? 'agent'
   const currentUserId = currentUser?.id ?? ''
 
@@ -843,6 +916,19 @@ console.log('[REALTIME_EVENT]', {
               currentUserName={currentUser?.name}
               currentUserRole={currentUserRole}
               onLogout={handleLogout}
+              actions={
+                <button
+                  onClick={handleEnablePush}
+                  disabled={pushLoading}
+                  className="rounded-lg bg-[#202c33] px-3 py-2 text-xs text-white hover:bg-[#2a3942] disabled:opacity-50"
+                >
+                  {pushLoading
+                    ? 'Ativando...'
+                    : pushEnabled
+                      ? 'Push ativo'
+                      : 'Ativar notificações'}
+                </button>
+              }
             />
           }
         >

@@ -17,6 +17,7 @@ import { phoneNumberRoutes } from './routes/phone-numbers.js'
 import { aiAgentRoutes } from './routes/ai-agents.js'
 import { masterTenantRoutes } from './routes/master-tenants.js'
 import { masterAdminRoutes } from './routes/master-admins.js'
+import { pushSubscriptionRoutes } from './routes/push-subscriptions.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -75,6 +76,7 @@ export async function buildApp() {
   await app.register(aiAgentRoutes, { prefix: '/api' })
   await app.register(masterTenantRoutes, { prefix: '/api' })
   await app.register(masterAdminRoutes, { prefix: '/api' })
+  await app.register(pushSubscriptionRoutes, { prefix: '/api' })
   await app.register(campaignDistributionRoutes, { prefix: '/api' })
   await app.register(presenceRoutes, { prefix: '/api' })
   await app.register(whatsappWebhookRoutes, { prefix: '/api' })

@@ -29,6 +29,7 @@ model Tenant {
   broadcasts         Broadcast[]
   whatsappConnections WhatsAppConnection[]
   aiAgents           AiAgent[]
+  pushSubscriptions PushSubscription[]
 }
 
 model PhoneNumber {
@@ -98,6 +99,7 @@ model User {
 
   // 🔐 SESSÕES
   sessions Session[]
+  pushSubscriptions PushSubscription[]
 
   @@index([tenantId, role, isActive])
   @@index([tenantId, isActive])
@@ -124,6 +126,29 @@ model Session {
   @@index([userId])
   @@index([tenantId])
   @@index([expiresAt])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+
+  userAgent String?
+  enabled   Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId, enabled])
+  @@index([userId, enabled])
+  @@index([tenantId, enabled])
 }
 
 model Contact {

@@ -52,6 +52,8 @@
 📄 apps\api\src\routes\campaigns.ts
 📄 apps\api\src\routes\conversations.ts
 📄 apps\api\src\routes\health.ts
+📄 apps\api\src\routes\master-admins.ts
+📄 apps\api\src\routes\master-tenants.ts
 📄 apps\api\src\routes\messages.ts
 📄 apps\api\src\routes\phone-numbers.ts
 📄 apps\api\src\routes\presence.ts
@@ -117,6 +119,9 @@
 📄 apps\web\mock\messages.ts
 📄 apps\web\public\file.svg
 📄 apps\web\public\globe.svg
+📄 apps\web\public\icon-192.png
+📄 apps\web\public\icon-512.png
+📄 apps\web\public\manifest.webmanifest
 📄 apps\web\public\next.svg
 📄 apps\web\public\vercel.svg
 📄 apps\web\public\window.svg

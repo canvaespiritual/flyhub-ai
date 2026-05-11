@@ -863,3 +863,85 @@ export async function createMasterAdmin(
 
   return res.json()
 }
+
+export async function getPushVapidPublicKey(): Promise<string> {
+  const res = await apiFetch(
+    `${API_BASE_URL}/push/vapid-public-key`,
+    {
+      cache: 'no-store'
+    }
+  )
+
+  if (!res.ok) {
+    throw await parseApiError(
+      res,
+      'Erro ao buscar chave VAPID'
+    )
+  }
+
+  const data = await res.json()
+
+  return data.publicKey
+}
+
+export async function subscribeToPush(
+  subscription: PushSubscription
+) {
+  const res = await apiFetch(
+    `${API_BASE_URL}/push/subscribe`,
+    {
+      method: 'POST',
+      body: JSON.stringify(subscription)
+    }
+  )
+
+  if (!res.ok) {
+    throw await parseApiError(
+      res,
+      'Erro ao registrar push'
+    )
+  }
+
+  return res.json()
+}
+
+export async function unsubscribeFromPush(
+  endpoint: string
+) {
+  const res = await apiFetch(
+    `${API_BASE_URL}/push/unsubscribe`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        endpoint
+      })
+    }
+  )
+
+  if (!res.ok) {
+    throw await parseApiError(
+      res,
+      'Erro ao remover push'
+    )
+  }
+
+  return res.json()
+}
+
+export async function sendPushTest() {
+  const res = await apiFetch(
+    `${API_BASE_URL}/push/test`,
+    {
+      method: 'POST'
+    }
+  )
+
+  if (!res.ok) {
+    throw await parseApiError(
+      res,
+      'Erro ao testar push'
+    )
+  }
+
+  return res.json()
+}
