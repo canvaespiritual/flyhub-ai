@@ -131,6 +131,8 @@ export function ChatWindow({
   const previousMessagesLengthRef = useRef(0)
   const loadingOlderRef = useRef(false)
   const previousScrollHeightRef = useRef(0)
+  const touchStartXRef = useRef(0)
+  const touchEndXRef = useRef(0)
 
   useEffect(() => {
     const isConversationChanged = previousConversationIdRef.current !== selectedConversation.id
@@ -221,9 +223,27 @@ export function ChatWindow({
     !isClosed &&
     (isPrivilegedRole || !isUnassigned || isOwnedByCurrentUser)
 
+    function handleTouchStart(event: React.TouchEvent) {
+  touchStartXRef.current = event.changedTouches[0].screenX
+}
+
+function handleTouchEnd(event: React.TouchEvent) {
+  touchEndXRef.current = event.changedTouches[0].screenX
+
+  const distance = touchEndXRef.current - touchStartXRef.current
+
+  if (distance > 90 && onBack) {
+    onBack()
+  }
+}
+
   return (
-    <section className="flex h-full min-h-0 flex-col bg-[#0b141a]">
-      <div className="border-b border-neutral-800 bg-[#111b21] p-4">
+    <section
+  className="flex h-full min-h-0 flex-col bg-[#0b141a]"
+  onTouchStart={handleTouchStart}
+  onTouchEnd={handleTouchEnd}
+>
+      <div className="sticky top-0 z-20 border-b border-neutral-800 bg-[#111b21] p-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-start">
             <button
@@ -466,7 +486,7 @@ export function ChatWindow({
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-4"
+        className="flex-1 overflow-y-auto overscroll-contain p-4"
       >
         {hasMoreMessages && (
           <div className="mb-4 flex justify-center">
