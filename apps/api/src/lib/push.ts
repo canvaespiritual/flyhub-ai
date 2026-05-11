@@ -117,36 +117,33 @@ export async function notifyInboundMessagePush(params: {
 
   let userIds: string[] = []
 
-  if (conversation.assignedUserId) {
-    userIds = [conversation.assignedUserId]
-
-    console.log('[PUSH_INBOUND_TARGET_ASSIGNED_USER]', {
-      assignedUserId: conversation.assignedUserId,
-      assignedUserEmail: conversation.assignedUser?.email
-    })
-  } else {
-    const supervisors = await prisma.user.findMany({
-      where: {
-        tenantId: params.tenantId,
-        isActive: true,
-        role: {
-          in: ['ADMIN', 'MANAGER', 'MASTER']
-        }
-      },
-      select: {
-        id: true,
-        email: true,
-        role: true
-      }
-    })
-
-    userIds = supervisors.map((user) => user.id)
-
-    console.log('[PUSH_INBOUND_TARGET_SUPERVISORS]', {
-      count: supervisors.length,
-      supervisors
-    })
+  const supervisors = await prisma.user.findMany({
+  where: {
+    tenantId: params.tenantId,
+    isActive: true,
+    role: {
+      in: ['ADMIN', 'MANAGER', 'MASTER']
+    }
+  },
+  select: {
+    id: true,
+    email: true,
+    role: true
   }
+})
+
+userIds = [
+  ...(conversation.assignedUserId ? [conversation.assignedUserId] : []),
+  ...supervisors.map((user) => user.id)
+]
+
+console.log('[PUSH_INBOUND_TARGET_USERS]', {
+  assignedUserId: conversation.assignedUserId,
+  assignedUserEmail: conversation.assignedUser?.email,
+  supervisorsCount: supervisors.length,
+  supervisors,
+  userIds
+})
 
   const uniqueUserIds = [...new Set(userIds)]
 
