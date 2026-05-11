@@ -236,12 +236,7 @@ const orderedConversations = useMemo(() => {
       </p>
 
       <span className="text-[11px] text-neutral-500 ml-2 whitespace-nowrap">
-        {conversation.lastMessage?.createdAt
-          ? new Date(conversation.lastMessage.createdAt).toLocaleTimeString('pt-BR', {
-              hour: '2-digit',
-              minute: '2-digit'
-            })
-          : ''}
+        {formatConversationListDate(conversation.updatedAt)}
       </span>
     </div>
 
