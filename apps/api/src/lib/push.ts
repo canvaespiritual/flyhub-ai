@@ -4,8 +4,6 @@ import { prisma } from './prisma.js'
 const publicKey = process.env.VAPID_PUBLIC_KEY
 const privateKey = process.env.VAPID_PRIVATE_KEY
 const subject = process.env.VAPID_SUBJECT || 'mailto:contato@flyhub.ai'
-const PUSH_COOLDOWN_MS = 15 * 1000
-const recentPushKeys = new Map<string, number>()
 
 if (publicKey && privateKey) {
   webPush.setVapidDetails(subject, publicKey, privateKey)
@@ -54,11 +52,12 @@ export async function sendPushNotification(params: {
       },
       JSON.stringify(params.payload)
     )
+
     console.log('[PUSH_SENT]', {
-  subscriptionId: params.subscriptionId,
-  title: params.payload.title,
-  conversationId: params.payload.conversationId
-})
+      subscriptionId: params.subscriptionId,
+      title: params.payload.title,
+      conversationId: params.payload.conversationId
+    })
   } catch (error: any) {
     const statusCode = error?.statusCode
 
@@ -115,38 +114,39 @@ export async function notifyInboundMessagePush(params: {
     console.log('[PUSH_INBOUND_SKIP_NO_CONVERSATION]', {
       conversationId: params.conversationId
     })
+
     return
   }
 
   let userIds: string[] = []
 
   const supervisors = await prisma.user.findMany({
-  where: {
-    tenantId: params.tenantId,
-    isActive: true,
-    role: {
-      in: ['ADMIN', 'MANAGER', 'MASTER']
+    where: {
+      tenantId: params.tenantId,
+      isActive: true,
+      role: {
+        in: ['ADMIN', 'MANAGER', 'MASTER']
+      }
+    },
+    select: {
+      id: true,
+      email: true,
+      role: true
     }
-  },
-  select: {
-    id: true,
-    email: true,
-    role: true
-  }
-})
+  })
 
-userIds = [
-  ...(conversation.assignedUserId ? [conversation.assignedUserId] : []),
-  ...supervisors.map((user) => user.id)
-]
+  userIds = [
+    ...(conversation.assignedUserId ? [conversation.assignedUserId] : []),
+    ...supervisors.map((user) => user.id)
+  ]
 
-console.log('[PUSH_INBOUND_TARGET_USERS]', {
-  assignedUserId: conversation.assignedUserId,
-  assignedUserEmail: conversation.assignedUser?.email,
-  supervisorsCount: supervisors.length,
-  supervisors,
-  userIds
-})
+  console.log('[PUSH_INBOUND_TARGET_USERS]', {
+    assignedUserId: conversation.assignedUserId,
+    assignedUserEmail: conversation.assignedUser?.email,
+    supervisorsCount: supervisors.length,
+    supervisors,
+    userIds
+  })
 
   const uniqueUserIds = [...new Set(userIds)]
 
@@ -155,6 +155,7 @@ console.log('[PUSH_INBOUND_TARGET_USERS]', {
       tenantId: params.tenantId,
       conversationId: params.conversationId
     })
+
     return
   }
 
@@ -179,29 +180,8 @@ console.log('[PUSH_INBOUND_TARGET_USERS]', {
 
   const leadName = conversation.contact?.name || 'Lead'
 
-  const now = Date.now()
-
-const eligibleSubscriptions = subscriptions.filter((subscription) => {
-  const key = `${params.conversationId}:${subscription.userId}`
-  const lastSentAt = recentPushKeys.get(key)
-
-  if (lastSentAt && now - lastSentAt < PUSH_COOLDOWN_MS) {
-    console.log('[PUSH_INBOUND_SKIP_COOLDOWN]', {
-      conversationId: params.conversationId,
-      userId: subscription.userId
-    })
-
-    return false
-  }
-
-  recentPushKeys.set(key, now)
-  return true
-})
-
-if (eligibleSubscriptions.length === 0) return
-
   await Promise.all(
-    eligibleSubscriptions.map((subscription) =>
+    subscriptions.map((subscription) =>
       sendPushNotification({
         subscriptionId: subscription.id,
         endpoint: subscription.endpoint,
