@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Conversation, Lead, UserRole } from '@flyhub/shared'
-import { getMessagePreview } from '@/lib/chat/message-utils'
+import {
+  formatConversationListDate,
+  getMessagePreview
+} from '@/lib/chat/message-utils'
 import { deleteConversation } from '@/lib/api'
 
 type Props = {

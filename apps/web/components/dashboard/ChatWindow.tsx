@@ -4,6 +4,10 @@ import { useEffect, useRef } from 'react'
 import type { Conversation, ConversationMode, Lead, Message, UserRole } from '@flyhub/shared'
 import { ChatComposer } from './ChatComposer'
 import { MessageBubble } from './MessageBubble'
+import {
+  formatChatDateSeparator,
+  getMessageDateKey
+} from '@/lib/chat/message-utils'
 import type { PresenceStatus, PresenceUser, User } from '@/lib/api'
 
 type SendTextMessagePayload = {
@@ -526,9 +530,30 @@ function handleTouchEnd(event: React.TouchEvent) {
         )}
 
         <div className="space-y-3">
-          {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
-          ))}
+  {messages.map((message, index) => {
+    const currentDateKey = getMessageDateKey(message.createdAt)
+    const previousMessage = messages[index - 1]
+    const previousDateKey = previousMessage
+      ? getMessageDateKey(previousMessage.createdAt)
+      : null
+
+    const shouldShowDateSeparator = currentDateKey !== previousDateKey
+
+    return (
+      <div key={message.id} className="space-y-3">
+        {shouldShowDateSeparator && (
+          <div className="flex justify-center">
+            <span className="rounded-full bg-[#111b21] px-3 py-1 text-xs font-medium text-neutral-300 shadow-sm">
+              {formatChatDateSeparator(message.createdAt)}
+            </span>
+          </div>
+        )}
+
+                <MessageBubble message={message} />
+              </div>
+            )
+          })}
+
           <div ref={bottomRef} />
         </div>
       </div>
