@@ -28,6 +28,7 @@ export type PushPayload = {
   body: string
   url?: string
   conversationId?: string
+  forceShow?: boolean
 }
 
 export async function sendPushNotification(params: {
