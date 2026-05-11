@@ -960,7 +960,17 @@ async function handleEnablePush() {
             <span className="text-neutral-400">
               {currentUser?.name} ({currentUser?.role})
             </span>
-
+          <button
+          onClick={handleEnablePush}
+          disabled={pushLoading}
+          className="rounded-md bg-[#202c33] px-3 py-1 text-xs text-white hover:bg-[#2a3942] disabled:opacity-50"
+        >
+          {pushLoading
+            ? '...'
+            : pushEnabled
+              ? 'Push'
+              : 'Notificar'}
+        </button>
             <button
               onClick={handleLogout}
               className="rounded-md bg-red-600 px-3 py-1 hover:bg-red-700"
