@@ -17,38 +17,23 @@ self.addEventListener('push', function (event) {
     }
   }
 
+  const tag = payload.conversationId
+    ? `conversation-${payload.conversationId}`
+    : 'flyhub-notification'
+
   event.waitUntil(
-    clients
-      .matchAll({
-        type: 'window',
-        includeUncontrolled: true
-      })
-      .then(function (clientList) {
-        const hasVisibleClient = clientList.some(function (client) {
-          return client.visibilityState === 'visible'
-        })
-
-        if (hasVisibleClient && !payload.forceShow) {
-        return
-        }
-
-        const tag = payload.conversationId
-          ? `conversation-${payload.conversationId}`
-          : 'flyhub-notification'
-
-        return self.registration.showNotification(payload.title || 'FlyHub AI', {
-          body: payload.body,
-          icon: '/icon-192.png',
-          badge: '/icon-192.png',
-          tag,
-          renotify: true,
-          timestamp: Date.now(),
-          data: {
-            url: payload.url || '/dashboard',
-            conversationId: payload.conversationId || null
-          }
-        })
-      })
+    self.registration.showNotification(payload.title || 'FlyHub AI', {
+      body: payload.body,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag,
+      renotify: true,
+      timestamp: Date.now(),
+      data: {
+        url: payload.url || '/dashboard',
+        conversationId: payload.conversationId || null
+      }
+    })
   )
 })
 
