@@ -51,6 +51,11 @@ export async function sendPushNotification(params: {
       },
       JSON.stringify(params.payload)
     )
+    console.log('[PUSH_SENT]', {
+  subscriptionId: params.subscriptionId,
+  title: params.payload.title,
+  conversationId: params.payload.conversationId
+})
   } catch (error: any) {
     const statusCode = error?.statusCode
 
@@ -87,6 +92,12 @@ export async function notifyInboundMessagePush(params: {
   messageId: string
   content?: string | null
 }) {
+  console.log('[PUSH_INBOUND_START]', {
+    tenantId: params.tenantId,
+    conversationId: params.conversationId,
+    messageId: params.messageId
+  })
+
   const conversation = await prisma.conversation.findUnique({
     where: {
       id: params.conversationId
@@ -97,12 +108,22 @@ export async function notifyInboundMessagePush(params: {
     }
   })
 
-  if (!conversation) return
+  if (!conversation) {
+    console.log('[PUSH_INBOUND_SKIP_NO_CONVERSATION]', {
+      conversationId: params.conversationId
+    })
+    return
+  }
 
   let userIds: string[] = []
 
   if (conversation.assignedUserId) {
     userIds = [conversation.assignedUserId]
+
+    console.log('[PUSH_INBOUND_TARGET_ASSIGNED_USER]', {
+      assignedUserId: conversation.assignedUserId,
+      assignedUserEmail: conversation.assignedUser?.email
+    })
   } else {
     const supervisors = await prisma.user.findMany({
       where: {
@@ -113,16 +134,29 @@ export async function notifyInboundMessagePush(params: {
         }
       },
       select: {
-        id: true
+        id: true,
+        email: true,
+        role: true
       }
     })
 
     userIds = supervisors.map((user) => user.id)
+
+    console.log('[PUSH_INBOUND_TARGET_SUPERVISORS]', {
+      count: supervisors.length,
+      supervisors
+    })
   }
 
   const uniqueUserIds = [...new Set(userIds)]
 
-  if (uniqueUserIds.length === 0) return
+  if (uniqueUserIds.length === 0) {
+    console.log('[PUSH_INBOUND_SKIP_NO_USERS]', {
+      tenantId: params.tenantId,
+      conversationId: params.conversationId
+    })
+    return
+  }
 
   const subscriptions = await prisma.pushSubscription.findMany({
     where: {
@@ -132,6 +166,13 @@ export async function notifyInboundMessagePush(params: {
       },
       enabled: true
     }
+  })
+
+  console.log('[PUSH_INBOUND_SUBSCRIPTIONS_FOUND]', {
+    tenantId: params.tenantId,
+    conversationId: params.conversationId,
+    userIds: uniqueUserIds,
+    count: subscriptions.length
   })
 
   if (subscriptions.length === 0) return
