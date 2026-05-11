@@ -15,6 +15,7 @@ import {
 } from '../lib/storage.js'
 import { startInitialSequenceForConversation } from '../lib/conversation-automation.js'
 import { runAiOrchestrator } from '../lib/ai/ai-orchestrator.js'
+import { notifyInboundMessagePush } from '../lib/push.js'
 
 type WhatsAppWebhookPayload = {
   object?: string
@@ -1029,6 +1030,23 @@ if (shouldRunAi) {
                   'Failed to auto assign inbound WhatsApp conversation'
                 )
               }
+            }
+                        try {
+              await notifyInboundMessagePush({
+                tenantId,
+                conversationId: baseData.conversation.id,
+                messageId: createdMessage.id,
+                content: createdMessage.content
+              })
+            } catch (error) {
+              request.log.error(
+                {
+                  error,
+                  conversationId: baseData.conversation.id,
+                  messageId: createdMessage.id
+                },
+                'Failed to send inbound push notification'
+              )
             }
           }
         }

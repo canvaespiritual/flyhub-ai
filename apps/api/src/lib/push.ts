@@ -72,3 +72,86 @@ export async function sendPushNotification(params: {
     }
   }
 }
+
+function getPushPreview(content?: string | null) {
+  const text = content?.trim()
+
+  if (!text) return 'Nova mensagem recebida'
+
+  return text.length > 90 ? `${text.slice(0, 90)}…` : text
+}
+
+export async function notifyInboundMessagePush(params: {
+  tenantId: string
+  conversationId: string
+  messageId: string
+  content?: string | null
+}) {
+  const conversation = await prisma.conversation.findUnique({
+    where: {
+      id: params.conversationId
+    },
+    include: {
+      contact: true,
+      assignedUser: true
+    }
+  })
+
+  if (!conversation) return
+
+  let userIds: string[] = []
+
+  if (conversation.assignedUserId) {
+    userIds = [conversation.assignedUserId]
+  } else {
+    const supervisors = await prisma.user.findMany({
+      where: {
+        tenantId: params.tenantId,
+        isActive: true,
+        role: {
+          in: ['ADMIN', 'MANAGER', 'MASTER']
+        }
+      },
+      select: {
+        id: true
+      }
+    })
+
+    userIds = supervisors.map((user) => user.id)
+  }
+
+  const uniqueUserIds = [...new Set(userIds)]
+
+  if (uniqueUserIds.length === 0) return
+
+  const subscriptions = await prisma.pushSubscription.findMany({
+    where: {
+      tenantId: params.tenantId,
+      userId: {
+        in: uniqueUserIds
+      },
+      enabled: true
+    }
+  })
+
+  if (subscriptions.length === 0) return
+
+  const leadName = conversation.contact?.name || 'Lead'
+
+  await Promise.all(
+    subscriptions.map((subscription) =>
+      sendPushNotification({
+        subscriptionId: subscription.id,
+        endpoint: subscription.endpoint,
+        p256dh: subscription.p256dh,
+        auth: subscription.auth,
+        payload: {
+          title: `Nova mensagem de ${leadName}`,
+          body: getPushPreview(params.content),
+          url: `/dashboard?conversationId=${params.conversationId}`,
+          conversationId: params.conversationId
+        }
+      })
+    )
+  )
+}
