@@ -311,6 +311,33 @@ function handleTouchEnd(event: React.TouchEvent) {
                     {selectedConversation.phoneNumber.label}
                   </span>
                 )}
+                <div className="ml-auto flex shrink-0 items-center gap-1 rounded-full border border-neutral-700 bg-[#0b141a] p-0.5 md:hidden">
+              <button
+                type="button"
+                disabled={!canChangeMode || changingMode || selectedConversation.mode === 'manual'}
+                onClick={() => onChangeMode('manual')}
+                className={`rounded-full px-2 py-1 text-[11px] font-medium transition ${
+                  selectedConversation.mode === 'manual'
+                    ? 'bg-[#25d366] text-black'
+                    : 'text-neutral-300'
+                } disabled:cursor-not-allowed disabled:opacity-60`}
+              >
+                Manual
+              </button>
+
+              <button
+                type="button"
+                disabled={!canChangeMode || changingMode || selectedConversation.mode === 'ai'}
+                onClick={() => onChangeMode('ai')}
+                className={`rounded-full px-2 py-1 text-[11px] font-medium transition ${
+                  selectedConversation.mode === 'ai'
+                    ? 'bg-[#25d366] text-black'
+                    : 'text-neutral-300'
+                } disabled:cursor-not-allowed disabled:opacity-60`}
+              >
+                IA
+              </button>
+              </div>
               </div>
 
               <div className="mt-2 hidden space-y-1 text-sm text-neutral-400 md:block">
