@@ -28,8 +28,8 @@ self.addEventListener('push', function (event) {
           return client.visibilityState === 'visible'
         })
 
-        if (hasVisibleClient) {
-          return
+        if (hasVisibleClient && !payload.forceShow) {
+        return
         }
 
         const tag = payload.conversationId

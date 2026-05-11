@@ -129,9 +129,10 @@ export async function pushSubscriptionRoutes(app: FastifyInstance) {
         p256dh: subscription.p256dh,
         auth: subscription.auth,
         payload: {
-          title: 'FlyHub AI',
-          body: 'Notificações push ativadas com sucesso.',
-          url: '/dashboard'
+        title: 'FlyHub AI',
+        body: 'Notificações push ativadas com sucesso.',
+        url: '/dashboard',
+        forceShow: true
         }
       })
     }
