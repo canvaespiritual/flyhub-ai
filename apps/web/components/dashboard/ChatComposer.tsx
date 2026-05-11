@@ -392,7 +392,7 @@ export function ChatComposer({ onSend, onSendMedia }: Props) {
   }
 
   return (
-    <div className="border-t border-neutral-800 bg-[#111b21] p-3 md:p-4">
+    <div className="shrink-0 border-t border-neutral-800 bg-[#111b21] p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:p-4">
       <div className="flex flex-col gap-2">
         {errorMessage && (
           <div className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">
@@ -483,7 +483,7 @@ export function ChatComposer({ onSend, onSendMedia }: Props) {
               }
               disabled={sending || recorderState === 'recording'}
               rows={1}
-              className="max-h-32 min-h-[28px] flex-1 resize-none bg-transparent px-2 py-1 text-sm text-white outline-none placeholder:text-neutral-500 disabled:opacity-60"
+              className="max-h-32 min-h-[28px] flex-1 resize-none bg-transparent px-2 py-1 text-[16px] text-white outline-none placeholder:text-neutral-500 disabled:opacity-60 md:text-sm"
             />
           </div>
 

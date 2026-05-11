@@ -243,7 +243,7 @@ function handleTouchEnd(event: React.TouchEvent) {
   onTouchStart={handleTouchStart}
   onTouchEnd={handleTouchEnd}
 >
-      <div className="sticky top-0 z-20 border-b border-neutral-800 bg-[#111b21] p-4">
+      <div className="sticky top-0 z-20 shrink-0 border-b border-neutral-800 bg-[#111b21] p-3 md:p-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-start">
             <button
@@ -313,7 +313,7 @@ function handleTouchEnd(event: React.TouchEvent) {
                 )}
               </div>
 
-              <div className="mt-2 space-y-1 text-sm text-neutral-400">
+              <div className="mt-2 hidden space-y-1 text-sm text-neutral-400 md:block">
                 <p>
                   {isManualMode ? 'Atendimento manual' : 'Modo IA ativo'} •{' '}
                   {getConversationStatusLabel(selectedConversation.status)}
@@ -365,7 +365,7 @@ function handleTouchEnd(event: React.TouchEvent) {
             </div>
           </div>
 
-          <div className="flex w-full max-w-[260px] flex-col items-end gap-2">
+          <div className="hidden w-full max-w-[260px] flex-col items-end gap-2 md:flex">
             {canAssume && (
               <button
                 type="button"
@@ -486,7 +486,7 @@ function handleTouchEnd(event: React.TouchEvent) {
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto overscroll-contain p-4"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 md:p-4"
       >
         {hasMoreMessages && (
           <div className="mb-4 flex justify-center">
