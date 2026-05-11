@@ -23,6 +23,7 @@ import {
   updateConversationMode,
   getPushVapidPublicKey,
   subscribeToPush,
+  unsubscribeFromPush,
   sendPushTest
 } from '@/lib/api'
 import type { PresenceStatus, PresenceUser, User } from '@/lib/api'
@@ -419,6 +420,10 @@ useEffect(() => {
           try {
             await navigator.serviceWorker.register('/sw.js')
             console.log('[PUSH] service worker registrado')
+            const registration = await navigator.serviceWorker.ready
+            const existingSubscription = await registration.pushManager.getSubscription()
+
+            setPushEnabled(Boolean(existingSubscription))
           } catch (error) {
             console.error('[PUSH] erro ao registrar service worker', error)
           }
@@ -775,7 +780,7 @@ console.log('[REALTIME_EVENT]', {
   function handleBack() {
     setMobileView('list')
   }
-async function handleEnablePush() {
+async function handleTogglePush() {
   try {
     setPushLoading(true)
     setErrorMessage(null)
@@ -789,6 +794,16 @@ async function handleEnablePush() {
     }
 
     const registration = await navigator.serviceWorker.ready
+    const existingSubscription = await registration.pushManager.getSubscription()
+
+    if (existingSubscription) {
+      await unsubscribeFromPush(existingSubscription.endpoint)
+      await existingSubscription.unsubscribe()
+
+      setPushEnabled(false)
+      setSuccessMessage('Push desativado com sucesso')
+      return
+    }
 
     const permission = await Notification.requestPermission()
 
@@ -798,28 +813,23 @@ async function handleEnablePush() {
 
     const vapidPublicKey = await getPushVapidPublicKey()
 
-    let subscription = await registration.pushManager.getSubscription()
-
-    if (!subscription) {
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
-      })
-    }
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+    })
 
     await subscribeToPush(subscription)
-
     await sendPushTest()
 
     setPushEnabled(true)
     setSuccessMessage('Push ativado com sucesso')
   } catch (error) {
-    console.error('[PUSH_ENABLE_ERROR]', error)
+    console.error('[PUSH_TOGGLE_ERROR]', error)
 
     setErrorMessage(
       error instanceof Error
         ? error.message
-        : 'Erro ao ativar notificações'
+        : 'Erro ao alterar notificações'
     )
   } finally {
     setPushLoading(false)
@@ -918,15 +928,15 @@ async function handleEnablePush() {
               onLogout={handleLogout}
               actions={
                 <button
-                  onClick={handleEnablePush}
+                  onClick={handleTogglePush}
                   disabled={pushLoading}
                   className="rounded-lg bg-[#202c33] px-3 py-2 text-xs text-white hover:bg-[#2a3942] disabled:opacity-50"
                 >
                   {pushLoading
-                    ? 'Ativando...'
-                    : pushEnabled
-                      ? 'Push ativo'
-                      : 'Ativar notificações'}
+                  ? 'Aguarde...'
+                  : pushEnabled
+                    ? 'Desativar push'
+                    : 'Ativar notificações'}
                 </button>
               }
             />
@@ -961,7 +971,7 @@ async function handleEnablePush() {
               {currentUser?.name} ({currentUser?.role})
             </span>
           <button
-          onClick={handleEnablePush}
+          onClick={handleTogglePush}
           disabled={pushLoading}
           className="rounded-md bg-[#202c33] px-3 py-1 text-xs text-white hover:bg-[#2a3942] disabled:opacity-50"
         >

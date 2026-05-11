@@ -4,6 +4,8 @@ import { prisma } from './prisma.js'
 const publicKey = process.env.VAPID_PUBLIC_KEY
 const privateKey = process.env.VAPID_PRIVATE_KEY
 const subject = process.env.VAPID_SUBJECT || 'mailto:contato@flyhub.ai'
+const PUSH_COOLDOWN_MS = 15 * 1000
+const recentPushKeys = new Map<string, number>()
 
 if (publicKey && privateKey) {
   webPush.setVapidDetails(subject, publicKey, privateKey)
@@ -176,8 +178,29 @@ console.log('[PUSH_INBOUND_TARGET_USERS]', {
 
   const leadName = conversation.contact?.name || 'Lead'
 
+  const now = Date.now()
+
+const eligibleSubscriptions = subscriptions.filter((subscription) => {
+  const key = `${params.conversationId}:${subscription.userId}`
+  const lastSentAt = recentPushKeys.get(key)
+
+  if (lastSentAt && now - lastSentAt < PUSH_COOLDOWN_MS) {
+    console.log('[PUSH_INBOUND_SKIP_COOLDOWN]', {
+      conversationId: params.conversationId,
+      userId: subscription.userId
+    })
+
+    return false
+  }
+
+  recentPushKeys.set(key, now)
+  return true
+})
+
+if (eligibleSubscriptions.length === 0) return
+
   await Promise.all(
-    subscriptions.map((subscription) =>
+    eligibleSubscriptions.map((subscription) =>
       sendPushNotification({
         subscriptionId: subscription.id,
         endpoint: subscription.endpoint,
