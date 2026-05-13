@@ -11,6 +11,7 @@ import {
 } from '../lib/whatsapp.js'
 import { uploadBufferToStorage } from '../lib/storage.js'
 import { convertAudioToOggOpus } from '../lib/audio-conversion.js'
+import { applyMessageIdentityPrefix } from '../lib/message-identity.js'
 
 const createMessageSchema = z.object({
   tenantId: z.string().min(1, 'tenantId é obrigatório').optional(),
@@ -347,7 +348,16 @@ export async function messageRoutes(app: FastifyInstance) {
       whatsappConnection: true
     }
   },
-  assignedUser: true
+  assignedUser: true,
+  campaign: {
+    select: {
+      enableMessageIdentity: true,
+      aiDisplayName: true,
+      enableAiPrefix: true,
+      enableAgentPrefix: true,
+      agentNameMode: true
+    }
+  }
 }
     })
 
@@ -415,8 +425,9 @@ export async function messageRoutes(app: FastifyInstance) {
         isActive: true
       },
       select: {
-        id: true
-      }
+  id: true,
+  name: true
+}
     })
 
     if (!senderUser) {
@@ -454,10 +465,20 @@ export async function messageRoutes(app: FastifyInstance) {
     const now = new Date()
 
     if (type === 'text') {
+            const cleanText = content!.trim()
+
+      const whatsappText = applyMessageIdentityPrefix({
+        text: cleanText,
+        campaign: conversation.campaign,
+        sender: {
+          senderType: 'AGENT',
+          agentName: senderUser.name
+        }
+      })
       const waResponse = await sendWhatsAppTextMessage({
   phoneNumberId: conversation.phoneNumber.externalId,
   to: conversation.contact.phone,
-  text: content!.trim(),
+  text: whatsappText,
   accessToken: whatsappAccessToken
 })
 
@@ -628,16 +649,27 @@ const storageUpload = await uploadBufferToStorage({
       conversationId,
       externalMediaId: mediaUploadResponse.id
     })
+        const cleanCaption = content?.trim()
 
+    const whatsappCaption =
+      mediaType === 'image' || mediaType === 'video' || mediaType === 'document'
+        ? cleanCaption
+          ? applyMessageIdentityPrefix({
+              text: cleanCaption,
+              campaign: conversation.campaign,
+              sender: {
+                senderType: 'AGENT',
+                agentName: senderUser.name
+              }
+            })
+          : undefined
+        : undefined
     const waResponse = await sendWhatsAppMediaMessage({
       phoneNumberId: conversation.phoneNumber.externalId,
       to: conversation.contact.phone,
       type: mediaType,
       mediaId: mediaUploadResponse.id,
-      caption:
-        mediaType === 'image' || mediaType === 'video' || mediaType === 'document'
-          ? content?.trim()
-          : undefined,
+      caption: whatsappCaption,
       fileName: mediaType === 'document' ? safeFileName : undefined,
       accessToken: whatsappAccessToken
     })

@@ -16,12 +16,23 @@ export const metadata: Metadata = {
   title: 'FlyHub AI',
   description: 'Dashboard de atendimento em tempo real',
   manifest: '/manifest.webmanifest',
+
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+    viewportFit: 'cover'
+  },
+
   themeColor: '#111b21',
+
   appleWebApp: {
     capable: true,
     title: 'FlyHub',
     statusBarStyle: 'black-translucent'
   },
+
   icons: {
     icon: [
       { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },

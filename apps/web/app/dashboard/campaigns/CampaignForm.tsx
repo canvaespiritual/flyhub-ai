@@ -46,6 +46,11 @@ export default function CampaignForm({
   const [ref, setRef] = useState('')
   const [fallbackText, setFallbackText] = useState('')
   const [initialPrompt, setInitialPrompt] = useState('')
+  const [enableMessageIdentity, setEnableMessageIdentity] = useState(false)
+  const [aiDisplayName, setAiDisplayName] = useState('')
+  const [enableAiPrefix, setEnableAiPrefix] = useState(true)
+  const [enableAgentPrefix, setEnableAgentPrefix] = useState(true)
+  const [agentNameMode, setAgentNameMode] = useState<'first_name' | 'full_name'>('first_name')
   const [isActive, setIsActive] = useState(true)
 
   const [steps, setSteps] = useState<StepFormValue[]>([])
@@ -67,6 +72,11 @@ export default function CampaignForm({
       setRef(campaign.ref || '')
       setFallbackText(campaign.fallbackText || '')
       setInitialPrompt(campaign.initialPrompt || '')
+      setEnableMessageIdentity(campaign.enableMessageIdentity ?? false)
+      setAiDisplayName(campaign.aiDisplayName || '')
+      setEnableAiPrefix(campaign.enableAiPrefix ?? true)
+      setEnableAgentPrefix(campaign.enableAgentPrefix ?? true)
+      setAgentNameMode(campaign.agentNameMode || 'first_name')
       setIsActive(campaign.isActive ?? true)
       setSteps(
         (campaign.initialSteps || []).map((step: any) => ({
@@ -91,6 +101,11 @@ export default function CampaignForm({
     setRef('')
     setFallbackText('')
     setInitialPrompt('')
+    setEnableMessageIdentity(false)
+    setAiDisplayName('')
+    setEnableAiPrefix(true)
+    setEnableAgentPrefix(true)
+    setAgentNameMode('first_name')
     setIsActive(true)
     setSteps([])
   }, [campaign])
@@ -197,6 +212,11 @@ async function handleStepMediaSelected(
         ref: ref || null,
         fallbackText: fallbackText || null,
         initialPrompt: initialPrompt || null,
+        enableMessageIdentity,
+        aiDisplayName: aiDisplayName || null,
+        enableAiPrefix,
+        enableAgentPrefix,
+        agentNameMode,
         isActive,
         initialSteps: normalizeStepsForSubmit()
       }
@@ -293,6 +313,75 @@ async function handleStepMediaSelected(
           className="w-full p-2 bg-black rounded border border-neutral-700"
         />
       </div>
+
+      <div className="rounded-xl border border-neutral-700 bg-[#0b141a] p-4">
+  <div className="mb-3">
+    <h3 className="text-lg font-semibold">Identidade das mensagens</h3>
+    <p className="mt-1 text-sm text-neutral-400">
+      Define o nome exibido no WhatsApp antes das mensagens desta campanha.
+      O histórico interno continua salvo sem prefixo.
+    </p>
+  </div>
+
+  <label className="mb-4 flex items-center gap-2 text-sm">
+    <input
+      type="checkbox"
+      checked={enableMessageIdentity}
+      onChange={(e) => setEnableMessageIdentity(e.target.checked)}
+    />
+    <span>Ativar identidade nesta campanha</span>
+  </label>
+
+  <div className="grid grid-cols-2 gap-3">
+    <div>
+      <label className="mb-1 block text-sm font-medium">Nome da IA</label>
+      <input
+        value={aiDisplayName}
+        onChange={(e) => setAiDisplayName(e.target.value)}
+        placeholder="Ex: Gust AI"
+        className="w-full rounded border border-neutral-700 bg-black p-2"
+        disabled={!enableMessageIdentity}
+      />
+    </div>
+
+    <div>
+      <label className="mb-1 block text-sm font-medium">Nome humano</label>
+      <select
+        value={agentNameMode}
+        onChange={(e) =>
+          setAgentNameMode(e.target.value as 'first_name' | 'full_name')
+        }
+        className="w-full rounded border border-neutral-700 bg-black p-2"
+        disabled={!enableMessageIdentity}
+      >
+        <option value="first_name">Primeiro nome</option>
+        <option value="full_name">Nome completo</option>
+      </select>
+    </div>
+  </div>
+
+  <div className="mt-4 grid grid-cols-2 gap-3">
+    <label className="flex items-center gap-2 text-sm">
+      <input
+        type="checkbox"
+        checked={enableAiPrefix}
+        onChange={(e) => setEnableAiPrefix(e.target.checked)}
+        disabled={!enableMessageIdentity}
+      />
+      <span>Prefixar mensagens da IA</span>
+    </label>
+
+    <label className="flex items-center gap-2 text-sm">
+      <input
+        type="checkbox"
+        checked={enableAgentPrefix}
+        onChange={(e) => setEnableAgentPrefix(e.target.checked)}
+        disabled={!enableMessageIdentity}
+      />
+      <span>Prefixar mensagens humanas</span>
+    </label>
+  </div>
+</div>
 
       <div className="border-t border-neutral-700 pt-4">
         <h3 className="text-lg font-semibold mb-3">Sequência inicial</h3>

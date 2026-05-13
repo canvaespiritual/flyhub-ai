@@ -16,6 +16,7 @@ import {
 import { startInitialSequenceForConversation } from '../lib/conversation-automation.js'
 import { runAiOrchestrator } from '../lib/ai/ai-orchestrator.js'
 import { notifyInboundMessagePush } from '../lib/push.js'
+import { applyMessageIdentityPrefix } from '../lib/message-identity.js'
 
 type WhatsAppWebhookPayload = {
   object?: string
@@ -610,11 +611,16 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
       assignedUser: true,
       phoneNumber: true,
       campaign: {
-        select: {
-          id: true,
-          name: true
-        }
+      select: {
+        id: true,
+        name: true,
+        enableMessageIdentity: true,
+        aiDisplayName: true,
+        enableAiPrefix: true,
+        enableAgentPrefix: true,
+        agentNameMode: true
       }
+    }
     }
   })
 
@@ -641,11 +647,16 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
         assignedUser: true,
         phoneNumber: true,
         campaign: {
-          select: {
-            id: true,
-            name: true
-          }
+        select: {
+          id: true,
+          name: true,
+          enableMessageIdentity: true,
+          aiDisplayName: true,
+          enableAiPrefix: true,
+          enableAgentPrefix: true,
+          agentNameMode: true
         }
+      }
       }
     })
   } else {
@@ -678,11 +689,16 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
         assignedUser: true,
         phoneNumber: true,
         campaign: {
-          select: {
-            id: true,
-            name: true
-          }
+        select: {
+          id: true,
+          name: true,
+          enableMessageIdentity: true,
+          aiDisplayName: true,
+          enableAiPrefix: true,
+          enableAgentPrefix: true,
+          agentNameMode: true
         }
+      }
       }
     })
 
@@ -909,10 +925,18 @@ if (shouldRunAi) {
       const whatsappAccessToken =
         phoneNumber.whatsappConnection?.accessToken ?? null
 
+            const whatsappAiText = applyMessageIdentityPrefix({
+        text: aiResponse.content,
+        campaign: baseData.conversation.campaign,
+        sender: {
+          senderType: 'AI'
+        }
+      })
+
       const waResponse = await sendWhatsAppTextMessage({
         phoneNumberId: phoneNumber.externalId,
         to: inboundFrom,
-        text: aiResponse.content,
+        text: whatsappAiText,
         accessToken: whatsappAccessToken
       })
 

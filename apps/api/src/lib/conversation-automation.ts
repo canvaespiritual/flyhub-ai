@@ -5,6 +5,7 @@ import {
   uploadWhatsAppMedia
 } from './whatsapp.js'
 import { publish } from './realtime.js'
+import { applyMessageIdentityPrefix } from './message-identity.js'
 
 type AutomationStepType =
   | 'TEXT'
@@ -358,7 +359,14 @@ export async function startInitialSequenceForConversation(
     },
     include: {
       campaign: {
-        include: {
+        select: {
+          id: true,
+          name: true,
+          enableMessageIdentity: true,
+          aiDisplayName: true,
+          enableAiPrefix: true,
+          enableAgentPrefix: true,
+          agentNameMode: true,
           initialSteps: {
             where: {
               isActive: true
@@ -457,8 +465,15 @@ export async function runConversationAutomation(params: {
           role: true
         }
       },
-      campaign: {
-        include: {
+            campaign: {
+        select: {
+          id: true,
+          name: true,
+          enableMessageIdentity: true,
+          aiDisplayName: true,
+          enableAiPrefix: true,
+          enableAgentPrefix: true,
+          agentNameMode: true,
           initialSteps: {
             where: {
               isActive: true
@@ -621,6 +636,17 @@ if (nextStep.type === 'TEXT' || nextStep.type === 'LINK') {
   )
 }
 
+  const automationTextWithIdentity =
+  nextStep.type === 'TEXT' || nextStep.type === 'LINK'
+    ? applyMessageIdentityPrefix({
+        text: normalizedContent,
+        campaign: conversation.campaign,
+        sender: {
+          senderType: 'AI'
+        }
+      })
+    : normalizedContent
+
     let externalMessageId: string | null = null
   let externalMediaId: string | null = null
   let messageType: 'TEXT' | 'AUDIO' | 'IMAGE' | 'DOCUMENT' | 'VIDEO' = 'TEXT'
@@ -635,7 +661,7 @@ if (nextStep.type === 'TEXT' || nextStep.type === 'LINK') {
         const waResponse = await sendWhatsAppTextMessage({
       phoneNumberId: conversation.phoneNumber.externalId,
       to: conversation.contact.phone,
-      text: normalizedContent,
+      text: automationTextWithIdentity,
       accessToken: whatsappAccessToken
     })
 
@@ -692,10 +718,19 @@ if (nextStep.type === 'TEXT' || nextStep.type === 'LINK') {
       })
 
       externalMediaId = uploadedMedia.id
+        const rawCaptionText = shouldUseCaption(nextStep.type)
+          ? normalizeNullableAutomationText(nextStep.content)
+          : null
 
-            const captionText = shouldUseCaption(nextStep.type)
-        ? normalizeNullableAutomationText(nextStep.content) ?? undefined
-        : undefined
+        const captionText = rawCaptionText
+          ? applyMessageIdentityPrefix({
+              text: rawCaptionText,
+              campaign: conversation.campaign,
+              sender: {
+                senderType: 'AI'
+              }
+            })
+          : undefined
 
             const waResponse = await sendWhatsAppMediaMessage({
         phoneNumberId: conversation.phoneNumber.externalId,

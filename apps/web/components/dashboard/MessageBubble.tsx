@@ -80,7 +80,7 @@ function getDocumentLabel(message: Message) {
 }
 
 export function MessageBubble({ message }: Props) {
-    const [showTranscription, setShowTranscription] = useState(false)
+  const [showTranscription, setShowTranscription] = useState(false)
   const isOutgoing = isOutgoingMessage(message)
   const metaLabel = getMetaLabel(message)
   const statusChecks = isOutgoing ? getStatusChecks(message.status) : null
@@ -137,7 +137,29 @@ export function MessageBubble({ message }: Props) {
             ) : (
               <p className="italic text-white/80">🎤 Áudio indisponível</p>
             )}
+                        {message.transcriptionStatus === 'processing' && (
+              <p className="text-xs italic text-white/70">
+                Transcrevendo áudio...
+              </p>
+            )}
 
+            {message.transcription && (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTranscription((value) => !value)}
+                  className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white transition hover:bg-white/15"
+                >
+                  {showTranscription ? 'Ocultar transcrição' : 'Ver transcrição'}
+                </button>
+
+                {showTranscription && (
+                  <p className="rounded-lg bg-white/10 px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words">
+                    {message.transcription}
+                  </p>
+                )}
+              </div>
+            )}
             {message.content &&
               message.content !== '[audio]' &&
               message.content !== '[audio too large]' && (

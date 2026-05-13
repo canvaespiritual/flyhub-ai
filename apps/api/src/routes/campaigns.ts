@@ -202,6 +202,11 @@ const createCampaignSchema = z
     ref: z.string().trim().min(1).max(100).nullable().optional(),
     fallbackText: z.string().trim().min(1).max(300).nullable().optional(),
     initialPrompt: z.string().trim().min(1).max(5000).nullable().optional(),
+    enableMessageIdentity: z.boolean().optional(),
+    aiDisplayName: z.string().trim().min(1).max(80).nullable().optional(),
+    enableAiPrefix: z.boolean().optional(),
+    enableAgentPrefix: z.boolean().optional(),
+    agentNameMode: z.enum(['first_name', 'full_name']).optional(),
     isActive: z.boolean().optional(),
     initialSteps: z.array(campaignInitialStepInputSchema).max(50).optional()
   })
@@ -224,6 +229,11 @@ const updateCampaignSchema = z
     ref: z.string().trim().min(1).max(100).nullable().optional(),
     fallbackText: z.string().trim().min(1).max(300).nullable().optional(),
     initialPrompt: z.string().trim().min(1).max(5000).nullable().optional(),
+    enableMessageIdentity: z.boolean().optional(),
+    aiDisplayName: z.string().trim().min(1).max(80).nullable().optional(),
+    enableAiPrefix: z.boolean().optional(),
+    enableAgentPrefix: z.boolean().optional(),
+    agentNameMode: z.enum(['first_name', 'full_name']).optional(),
     isActive: z.boolean().optional(),
     initialSteps: z.array(campaignInitialStepInputSchema).max(50).optional()
   })
@@ -279,6 +289,16 @@ function normalizeInitialSteps(
     }))
 }
 
+function normalizeAgentNameMode(value?: 'first_name' | 'full_name') {
+  if (value === 'full_name') return 'FULL_NAME'
+  return 'FIRST_NAME'
+}
+
+function serializeAgentNameMode(value: 'FIRST_NAME' | 'FULL_NAME') {
+  if (value === 'FULL_NAME') return 'full_name'
+  return 'first_name'
+}
+
 function serializeCampaign(campaign: {
   id: string
   name: string
@@ -289,6 +309,11 @@ function serializeCampaign(campaign: {
   ref: string | null
   fallbackText: string | null
   initialPrompt: string | null
+  enableMessageIdentity: boolean
+  aiDisplayName: string | null
+  enableAiPrefix: boolean
+  enableAgentPrefix: boolean
+  agentNameMode: 'FIRST_NAME' | 'FULL_NAME'
   isActive: boolean
   createdAt: Date
   updatedAt: Date
@@ -328,6 +353,11 @@ function serializeCampaign(campaign: {
     ref: campaign.ref ?? undefined,
     fallbackText: campaign.fallbackText ?? undefined,
     initialPrompt: campaign.initialPrompt ?? undefined,
+    enableMessageIdentity: campaign.enableMessageIdentity,
+    aiDisplayName: campaign.aiDisplayName ?? undefined,
+    enableAiPrefix: campaign.enableAiPrefix,
+    enableAgentPrefix: campaign.enableAgentPrefix,
+    agentNameMode: serializeAgentNameMode(campaign.agentNameMode),
     isActive: campaign.isActive,
     createdAt: campaign.createdAt.toISOString(),
     updatedAt: campaign.updatedAt.toISOString(),
@@ -625,6 +655,11 @@ export async function campaignRoutes(app: FastifyInstance) {
       ref,
       fallbackText,
       initialPrompt,
+      enableMessageIdentity,
+      aiDisplayName,
+      enableAiPrefix,
+      enableAgentPrefix,
+      agentNameMode,
       isActive,
       initialSteps
     } = parsedBody.data
@@ -725,6 +760,11 @@ export async function campaignRoutes(app: FastifyInstance) {
         ref: normalizedRef,
         fallbackText: normalizeNullableString(fallbackText),
         initialPrompt: normalizeNullableString(initialPrompt),
+        enableMessageIdentity: enableMessageIdentity ?? false,
+        aiDisplayName: normalizeNullableString(aiDisplayName),
+        enableAiPrefix: enableAiPrefix ?? true,
+        enableAgentPrefix: enableAgentPrefix ?? true,
+        agentNameMode: normalizeAgentNameMode(agentNameMode),
         isActive: isActive ?? true,
         ...(normalizedInitialSteps
           ? {
@@ -949,6 +989,21 @@ export async function campaignRoutes(app: FastifyInstance) {
             : {}),
           ...(data.initialPrompt !== undefined
             ? { initialPrompt: normalizeNullableString(data.initialPrompt) }
+            : {}),
+          ...(data.enableMessageIdentity !== undefined
+            ? { enableMessageIdentity: data.enableMessageIdentity }
+            : {}),
+          ...(data.aiDisplayName !== undefined
+            ? { aiDisplayName: normalizeNullableString(data.aiDisplayName) }
+            : {}),
+          ...(data.enableAiPrefix !== undefined
+            ? { enableAiPrefix: data.enableAiPrefix }
+            : {}),
+          ...(data.enableAgentPrefix !== undefined
+            ? { enableAgentPrefix: data.enableAgentPrefix }
+            : {}),
+          ...(data.agentNameMode !== undefined
+            ? { agentNameMode: normalizeAgentNameMode(data.agentNameMode) }
             : {}),
           ...(data.isActive !== undefined ? { isActive: data.isActive } : {})
         }
