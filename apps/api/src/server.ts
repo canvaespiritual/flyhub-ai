@@ -1,6 +1,7 @@
 import { buildApp } from "./app.js";
 import { prisma } from "./lib/prisma.js";
 import { publish } from "./lib/realtime.js";
+import { runConversationAutomation } from "./lib/conversation-automation.js";
 
 function mapConversationMode(mode: "MANUAL" | "AI") {
   return mode === "AI" ? "ai" : "manual";
@@ -42,6 +43,43 @@ async function start() {
     });
 
     app.log.info(`HTTP server running on port ${port}`);
+
+        // 🔥 AUTOMATION ENGINE
+    setInterval(async () => {
+      try {
+        const now = new Date();
+
+        const dueConversations = await prisma.conversation.findMany({
+          where: {
+            status: "OPEN",
+            mode: "AI",
+            automationStatus: "RUNNING",
+            nextAutomationAt: {
+              lte: now
+            }
+          },
+          select: {
+            id: true
+          },
+          take: 20
+        });
+
+        for (const conversation of dueConversations) {
+          try {
+            await runConversationAutomation({
+              conversationId: conversation.id
+            });
+          } catch (error) {
+            console.error("[AUTOMATION_ENGINE_ERROR]", {
+              conversationId: conversation.id,
+              error
+            });
+          }
+        }
+      } catch (error) {
+        console.error("[AUTOMATION_ENGINE_FATAL]", error);
+      }
+    }, 5 * 1000);
 
     // 🔥 SLA TIMEOUT ENGINE (5 min)
     const SLA_TIMEOUT_MS = 5 * 60 * 1000;
