@@ -442,9 +442,13 @@ export async function runConversationAutomation(params: {
     where: {
       id: params.conversationId
     },
-    include: {
+       include: {
       contact: true,
-      phoneNumber: true,
+      phoneNumber: {
+        include: {
+          whatsappConnection: true
+        }
+      },
       assignedUser: {
         select: {
           id: true,
@@ -554,6 +558,8 @@ if (
     return
   }
 
+  const whatsappAccessToken =
+  conversation.phoneNumber.whatsappConnection?.accessToken ?? null
   const currentOrder = conversation.currentAutomationStepOrder ?? null
 
   const nextStep = conversation.campaign.initialSteps.find((step) => {
@@ -626,10 +632,11 @@ if (nextStep.type === 'TEXT' || nextStep.type === 'LINK') {
   let storageKeyForMessage: string | null = null
 
   if (nextStep.type === 'TEXT' || nextStep.type === 'LINK') {
-    const waResponse = await sendWhatsAppTextMessage({
+        const waResponse = await sendWhatsAppTextMessage({
       phoneNumberId: conversation.phoneNumber.externalId,
       to: conversation.contact.phone,
-      text: normalizedContent
+      text: normalizedContent,
+      accessToken: whatsappAccessToken
     })
 
     externalMessageId = waResponse.messages?.[0]?.id ?? null
@@ -644,11 +651,12 @@ if (nextStep.type === 'TEXT' || nextStep.type === 'LINK') {
     // Compatibilidade com o formato antigo:
     // se não houver mediaUrl, assume que content ainda é um mediaId pronto
     if (!nextStep.mediaUrl) {
-            const waResponse = await sendWhatsAppMediaMessage({
+        const waResponse = await sendWhatsAppMediaMessage({
         phoneNumberId: conversation.phoneNumber.externalId,
         to: conversation.contact.phone,
         type: mediaStepType,
-        mediaId: normalizedContent
+        mediaId: normalizedContent,
+        accessToken: whatsappAccessToken
       })
 
       externalMessageId = waResponse.messages?.[0]?.id ?? null
@@ -657,7 +665,7 @@ if (nextStep.type === 'TEXT' || nextStep.type === 'LINK') {
     } else {
       const mediaBuffer = await downloadAutomationMedia(nextStep.mediaUrl)
 
-      const uploadedMedia = await uploadWhatsAppMedia({
+            const uploadedMedia = await uploadWhatsAppMedia({
         phoneNumberId: conversation.phoneNumber.externalId,
         fileBuffer: mediaBuffer,
         mimeType:
@@ -679,7 +687,8 @@ if (nextStep.type === 'TEXT' || nextStep.type === 'LINK') {
                 : mediaStepType === 'video'
                   ? '.mp4'
                   : ''
-          }`
+          }`,
+        accessToken: whatsappAccessToken
       })
 
       externalMediaId = uploadedMedia.id
@@ -688,7 +697,7 @@ if (nextStep.type === 'TEXT' || nextStep.type === 'LINK') {
         ? normalizeNullableAutomationText(nextStep.content) ?? undefined
         : undefined
 
-      const waResponse = await sendWhatsAppMediaMessage({
+            const waResponse = await sendWhatsAppMediaMessage({
         phoneNumberId: conversation.phoneNumber.externalId,
         to: conversation.contact.phone,
         type: mediaStepType,
@@ -697,7 +706,8 @@ if (nextStep.type === 'TEXT' || nextStep.type === 'LINK') {
         fileName:
           mediaStepType === 'document'
             ? nextStep.fileName ?? undefined
-            : undefined
+            : undefined,
+        accessToken: whatsappAccessToken
       })
 
       externalMessageId = waResponse.messages?.[0]?.id ?? null
