@@ -942,6 +942,55 @@ if (nextStep.type === 'TEXT' || nextStep.type === 'LINK') {
   return
 }
 
+const campaignAiConfig = conversation.campaignId
+  ? await prisma.campaignAiConfig.findUnique({
+      where: {
+        campaignId: conversation.campaignId
+      },
+      select: {
+        agentId: true
+      }
+    })
+  : null
+
+const fallbackAgent = campaignAiConfig
+  ? null
+  : await prisma.aiAgent.findFirst({
+      where: {
+        tenantId: conversation.tenantId,
+        isActive: true
+      },
+      orderBy: {
+        createdAt: 'asc'
+      },
+      select: {
+        id: true
+      }
+    })
+
+const agentId = campaignAiConfig?.agentId ?? fallbackAgent?.id ?? null
+
+if (agentId) {
+  await prisma.conversationAiState.upsert({
+    where: {
+      conversationId: conversation.id
+    },
+    update: {
+      agentId
+    },
+    create: {
+      conversationId: conversation.id,
+      agentId
+    }
+  })
+
+  await scheduleNextConversationFollowup({
+    conversationId: conversation.id,
+    baseMessageId: result.createdMessage.id,
+    baseDate: result.createdMessage.createdAt
+  })
+}
+
 await prisma.conversation.update({
   where: {
     id: conversation.id
