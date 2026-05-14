@@ -7,9 +7,9 @@ const FOLLOWUP_START_HOUR = 6
 const FOLLOWUP_END_HOUR = 23
 
 const FOLLOWUP_DELAYS = [
-  1,
-  2,
-  3
+  2 * 60, // F1 = 2h
+  4 * 60, // F2 = 4h após F1
+  10 * 60 // F3 = próxima janela útil aproximada
 ]
 
 function isInsideQuietHours(date: Date) {
