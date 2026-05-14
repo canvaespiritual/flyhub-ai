@@ -102,7 +102,11 @@ export default function AiPage() {
       objections: loaded.objections || [],
       resources: loaded.resources || [],
       knowledgeTables: loaded.knowledgeTables || [],
-      followupRules: loaded.followupRules || [],
+      followupRules:
+      (loaded.followupRules || []).map((item: any) => ({
+        id: item.id,
+        message: item.message || ''
+      })),
       successExamples: loaded.successExamples || []
     })
   }
@@ -143,12 +147,24 @@ export default function AiPage() {
     setError('')
     setSuccess('')
 
+    const payload = {
+  ...agent,
+
+  followupRules: (agent.followupRules || []).map((item: any, index: number) => ({
+    id: item.id,
+    delayMinutes: index === 0 ? 120 : index === 1 ? 240 : 600,
+    message: item.message,
+    windowType: 'SERVICE_24H',
+    isActive: true
+  }))
+}
+
     try {
       if (selectedId) {
-        const updated = await updateAiAgent(selectedId, agent)
+        const updated = await updateAiAgent(selectedId, payload)
         await selectAgent(updated.id || selectedId)
       } else {
-        const created = await createAiAgent(agent)
+        const created = await createAiAgent(payload)
         await load()
         await selectAgent(created.id)
       }
@@ -450,10 +466,7 @@ export default function AiPage() {
               items={agent.followupRules}
               add={() =>
                 addItem('followupRules', {
-                  delayMinutes: 0,
-                  message: '',
-                  windowType: 'SERVICE_24H',
-                  isActive: true
+                  message: ''
                 })
               }
               remove={(i: number) => removeItem('followupRules', i)}
