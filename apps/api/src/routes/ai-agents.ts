@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { getSessionFromRequest } from '../lib/auth.js'
+import { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 
 const paramsSchema = z.object({
@@ -586,6 +587,185 @@ export async function aiAgentRoutes(app: FastifyInstance) {
     await createPromptVersion(updated.id)
 
     return serializeAgent(updated)
+  })
+
+    app.post('/ai/agents/:id/clone', async (request, reply) => {
+    const session = await getSessionFromRequest(request)
+    const parsedParams = paramsSchema.safeParse(request.params)
+
+    if (!session) {
+      return reply.status(401).send({ message: 'Não autenticado' })
+    }
+
+    if (!parsedParams.success) {
+      return reply.status(400).send({ message: 'Invalid agent id' })
+    }
+
+    if (!assertCanManageAi(session.user.role)) {
+      return reply.status(403).send({ message: 'Sem permissão para clonar agente IA' })
+    }
+
+    const original = await prisma.aiAgent.findFirst({
+      where: {
+        id: parsedParams.data.id,
+        tenantId: session.user.tenantId
+      },
+      include: {
+        stages: { orderBy: { order: 'asc' } },
+        objections: true,
+        resources: true,
+        knowledgeTables: {
+          include: {
+            rows: true
+          }
+        },
+        followupRules: true,
+        successExamples: true
+      }
+    })
+
+    if (!original) {
+      return reply.status(404).send({ message: 'Agente IA não encontrado' })
+    }
+
+    const cloned = await prisma.$transaction(async (tx) => {
+      const createdAgent = await tx.aiAgent.create({
+        data: {
+          tenantId: original.tenantId,
+
+          name: `${original.name} (cópia)`,
+
+          // importante:
+          // evita conflito unique([tenantId, slug])
+          slug: null,
+
+          description: original.description,
+
+          // segurança:
+          // clone nasce desligado
+          isActive: false,
+
+          model: original.model,
+          temperature: original.temperature,
+          maxContextMessages: original.maxContextMessages,
+
+          objective: original.objective,
+          tone: original.tone,
+          basePrompt: original.basePrompt,
+          safetyRules: original.safetyRules,
+          handoffRules: original.handoffRules,
+          businessRules: original.businessRules
+        }
+      })
+
+      if (original.stages.length) {
+        await tx.aiStage.createMany({
+          data: original.stages.map((stage) => ({
+            agentId: createdAgent.id,
+            name: stage.name,
+            order: stage.order,
+            objective: stage.objective,
+            instructions: stage.instructions,
+            isActive: stage.isActive
+          }))
+        })
+      }
+
+      if (original.objections.length) {
+        await tx.aiObjection.createMany({
+          data: original.objections.map((item) => ({
+            agentId: createdAgent.id,
+            stageId: item.stageId,
+            title: item.title,
+            triggers: item.triggers,
+            response: item.response,
+            isActive: item.isActive
+          }))
+        })
+      }
+
+      if (original.resources.length) {
+        await tx.aiResource.createMany({
+          data: original.resources.map((item) => ({
+            agentId: createdAgent.id,
+            type: item.type,
+            title: item.title,
+            url: item.url,
+            description: item.description,
+            isActive: item.isActive
+          }))
+        })
+      }
+
+      for (const table of original.knowledgeTables) {
+        const createdTable = await tx.aiKnowledgeTable.create({
+          data: {
+            agentId: createdAgent.id,
+            name: table.name,
+            type: table.type,
+            isActive: table.isActive
+          }
+        })
+
+        if (table.rows.length) {
+          await tx.aiKnowledgeRow.createMany({
+            data: table.rows.map((row) => ({
+            tableId: createdTable.id,
+            data: row.data as Prisma.InputJsonValue
+          }))
+          })
+        }
+      }
+
+      if (original.followupRules.length) {
+        await tx.aiFollowupRule.createMany({
+          data: original.followupRules.map((item) => ({
+            agentId: createdAgent.id,
+            delayMinutes: item.delayMinutes,
+            message: item.message,
+            windowType: item.windowType,
+            isActive: item.isActive
+          }))
+        })
+      }
+
+      if (original.successExamples.length) {
+        await tx.aiSuccessExample.createMany({
+          data: original.successExamples.map((item) => ({
+            agentId: createdAgent.id,
+            title: item.title,
+            transcript: item.transcript,
+            isActive: item.isActive
+          }))
+        })
+      }
+
+      return tx.aiAgent.findUniqueOrThrow({
+        where: {
+          id: createdAgent.id
+        },
+        include: {
+          stages: { orderBy: { order: 'asc' } },
+          objections: true,
+          resources: true,
+          knowledgeTables: {
+            include: {
+              rows: true
+            }
+          },
+          followupRules: true,
+          successExamples: true,
+
+          // IMPORTANTE:
+          // clone nasce sem campanhas
+          campaignConfigs: true
+        }
+      })
+    })
+
+    await createPromptVersion(cloned.id)
+
+    return serializeAgent(cloned)
   })
 
   app.patch('/ai/campaign-link', async (request, reply) => {

@@ -7,7 +7,8 @@ import {
   getAiAgents,
   updateAiAgent,
   getCampaigns,
-  linkAiAgentToCampaign
+  linkAiAgentToCampaign,
+  cloneAiAgent
 } from '@/lib/api'
 
 const tabs = [
@@ -142,6 +143,34 @@ export default function AiPage() {
     }))
   }
 
+  async function handleCloneAgent() {
+  if (!selectedId) return
+
+  const confirmed = window.confirm(
+    `Clonar o agente "${agent.name}"? O clone nascerá sem campanhas vinculadas e inativo por segurança.`
+  )
+
+  if (!confirmed) return
+
+  setSaving(true)
+  setError('')
+  setSuccess('')
+
+  try {
+    const cloned = await cloneAiAgent(selectedId)
+
+    await load()
+    await selectAgent(cloned.id)
+
+    setTab('Identidade')
+    setSuccess('Agente IA clonado com sucesso. Revise, salve e vincule às campanhas desejadas.')
+  } catch (err: any) {
+    setError(err?.message || 'Erro ao clonar agente IA')
+  } finally {
+    setSaving(false)
+  }
+}
+
   async function save() {
     setSaving(true)
     setError('')
@@ -274,6 +303,17 @@ export default function AiPage() {
               </p>
             </div>
 
+            <div className="flex flex-wrap gap-2">
+  {selectedId && (
+              <button
+                onClick={() => void handleCloneAgent()}
+                disabled={saving}
+                className="rounded-lg bg-neutral-700 px-4 py-2 text-sm font-semibold hover:bg-neutral-600 disabled:opacity-60"
+              >
+                Clonar agente
+              </button>
+            )}
+
             <button
               onClick={() => void save()}
               disabled={saving}
@@ -281,6 +321,7 @@ export default function AiPage() {
             >
               {saving ? 'Salvando...' : 'Salvar agente'}
             </button>
+          </div>
           </div>
 
           {error && <div className="mt-3 rounded-lg bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}

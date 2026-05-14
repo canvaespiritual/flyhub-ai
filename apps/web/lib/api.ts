@@ -815,6 +815,18 @@ export async function linkAiAgentToCampaign(payload: {
   return res.json()
 }
 
+export async function cloneAiAgent(agentId: string) {
+  const res = await apiFetch(`${API_BASE_URL}/ai/agents/${agentId}/clone`, {
+    method: 'POST'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao clonar agente IA')
+  }
+
+  return res.json()
+}
+
 export type MasterAdmin = {
   id: string
   name: string
@@ -945,3 +957,4 @@ export async function sendPushTest() {
 
   return res.json()
 }
+
