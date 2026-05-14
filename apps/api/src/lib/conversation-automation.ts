@@ -541,6 +541,28 @@ if (
   return
 }
 
+const claimed = await prisma.conversation.updateMany({
+  where: {
+    id: conversation.id,
+    status: 'OPEN',
+    mode: 'AI',
+    automationStatus: 'RUNNING',
+    nextAutomationAt: {
+      lte: now
+    }
+  },
+  data: {
+    nextAutomationAt: null
+  }
+})
+
+if (claimed.count === 0) {
+  console.log('[AUTOMATION_RUN_SKIPPED_ALREADY_CLAIMED]', {
+    conversationId: conversation.id
+  })
+  return
+}
+
   if (conversation.automationKind !== 'INITIAL_SEQUENCE') {
     console.log('[AUTOMATION_RUN_SKIPPED_KIND]', {
       conversationId: conversation.id,
@@ -850,11 +872,19 @@ if (nextStep.type === 'TEXT' || nextStep.type === 'LINK') {
   })
 
   if (followingAutomationAt) {
-    scheduleConversationWakeUp(conversation.id, followingAutomationAt)
-    return
-  }
+  scheduleConversationWakeUp(conversation.id, followingAutomationAt)
+  return
+}
 
-  await runConversationAutomation({
-    conversationId: conversation.id
-  })
+await prisma.conversation.update({
+  where: {
+    id: conversation.id
+  },
+  data: {
+    automationStatus: 'COMPLETED',
+    automationCompletedAt: new Date(),
+    nextAutomationAt: null,
+    mode: 'AI'
+  }
+})
 }
