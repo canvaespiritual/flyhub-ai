@@ -17,6 +17,10 @@ import { startInitialSequenceForConversation } from '../lib/conversation-automat
 import { runAiOrchestrator } from '../lib/ai/ai-orchestrator.js'
 import { notifyInboundMessagePush } from '../lib/push.js'
 import { applyMessageIdentityPrefix } from '../lib/message-identity.js'
+import {
+  resetConversationFollowups,
+  scheduleNextConversationFollowup
+} from '../lib/ai/ai-followup-engine.js'
 
 type WhatsAppWebhookPayload = {
   object?: string
@@ -876,6 +880,7 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
                 locationAddress
               }
             })
+            await resetConversationFollowups(baseData.conversation.id)
 
             publish(tenantId, {
               type: 'message:new',
@@ -956,7 +961,11 @@ if (shouldRunAi) {
           sentAt: now
         }
       })
-
+          await scheduleNextConversationFollowup({
+          conversationId: baseData.conversation.id,
+          baseMessageId: aiMessage.id,
+          baseDate: now
+        })
       await prisma.conversation.update({
         where: {
           id: baseData.conversation.id

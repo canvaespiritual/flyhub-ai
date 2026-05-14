@@ -428,23 +428,42 @@ export default function AiPage() {
           )}
 
           {tab === 'Follow-ups' && (
+             <div>
+              <div className="mb-4 rounded-xl border border-blue-500/20 bg-blue-500/10 p-4 text-sm text-blue-100">
+              <div className="mb-2 font-semibold">
+                Cadência automática do sistema
+              </div>
+
+              <div className="space-y-1 text-blue-200">
+                <div>• 1º follow-up: 2 horas após silêncio</div>
+                <div>• 2º follow-up: 4 horas após o primeiro</div>
+                <div>• 3º follow-up: próxima janela útil</div>
+                <div>• Não envia entre 23h e 06h</div>
+                <div>• Máximo de 3 follow-ups</div>
+                <div>• Se o lead responder, o ciclo reinicia</div>
+                <div>• Se humano assumir, follow-up pausa</div>
+              </div>
+            </div>
+              
             <ArrayEditor
               title="Follow-ups"
               items={agent.followupRules}
-              add={() => addItem('followupRules', { delayMinutes: 10, message: '', windowType: 'SERVICE_24H', isActive: true })}
+              add={() =>
+                addItem('followupRules', {
+                  delayMinutes: 0,
+                  message: '',
+                  windowType: 'SERVICE_24H',
+                  isActive: true
+                })
+              }
               remove={(i: number) => removeItem('followupRules', i)}
               render={(item: any, i: number) => (
                 <>
-                  <Input type="number" placeholder="Delay em minutos" value={item.delayMinutes || 10} onChange={(e: any) => updateArrayItem('followupRules', i, 'delayMinutes', Number(e.target.value))} />
-                  <select value={item.windowType} onChange={(e) => updateArrayItem('followupRules', i, 'windowType', e.target.value)} className="rounded-lg border border-neutral-700 bg-black p-3 text-sm text-white">
-                    <option value="SERVICE_24H">Janela 24h</option>
-                    <option value="ENTRY_POINT_72H">Entrada anúncio 72h</option>
-                    <option value="TEMPLATE_AFTER_WINDOW">Template após janela</option>
-                  </select>
-                  <Textarea placeholder="Mensagem do follow-up" value={item.message || ''} onChange={(e: any) => updateArrayItem('followupRules', i, 'message', e.target.value)} />
+                <Textarea placeholder="Mensagem do follow-up" value={item.message || ''} onChange={(e: any) => updateArrayItem('followupRules', i, 'message', e.target.value)} />
                 </>
               )}
             />
+            </div>
           )}
 
           {tab === 'Exemplos' && (
@@ -465,6 +484,9 @@ export default function AiPage() {
           {tab === 'Campanhas' && (
             <div className="space-y-3">
               <h3 className="text-lg font-semibold">Vincular agente às campanhas</h3>
+              <div className="rounded-xl border border-neutral-800 bg-black p-4 text-sm text-neutral-300">
+                Vincule este agente às campanhas desejadas. Leads sem campanha identificada usam o primeiro agente ativo da operação como fallback geral.
+              </div>
               {!selectedId && <div className="text-sm text-neutral-400">Salve o agente antes de vincular campanhas.</div>}
               {campaigns.map((campaign) => (
                 <label key={campaign.id} className="flex items-center justify-between rounded-xl border border-neutral-800 bg-black p-4">

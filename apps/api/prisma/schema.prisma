@@ -328,6 +328,7 @@ model Conversation {
   automationCompletedAt    DateTime?
   automationCancelledAt    DateTime?
   lastAutomationDispatchAt DateTime?
+  nextFollowupAt           DateTime?
   nextAutomationAt         DateTime?
 
   createdAt                DateTime                     @default(now())
@@ -870,6 +871,10 @@ model ConversationAiState {
   agentId        String
   currentStageId String?
   contextSummary String?
+  followupCount             Int       @default(0)
+  lastFollowupAt            DateTime?
+  lastFollowupBaseMessageId String?
+  followupPaused            Boolean   @default(false)
 
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   agent          AiAgent      @relation(fields: [agentId], references: [id], onDelete: Cascade)

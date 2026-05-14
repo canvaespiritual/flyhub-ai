@@ -2,6 +2,7 @@ import { buildApp } from "./app.js";
 import { prisma } from "./lib/prisma.js";
 import { publish } from "./lib/realtime.js";
 import { runConversationAutomation } from "./lib/conversation-automation.js";
+import { processPendingAiFollowups } from "./lib/ai/ai-followup-engine.js";
 
 function mapConversationMode(mode: "MANUAL" | "AI") {
   return mode === "AI" ? "ai" : "manual";
@@ -80,6 +81,15 @@ async function start() {
         console.error("[AUTOMATION_ENGINE_FATAL]", error);
       }
     }, 5 * 1000);
+
+        // 🔥 AI FOLLOW-UP ENGINE
+    setInterval(async () => {
+      try {
+        await processPendingAiFollowups();
+      } catch (error) {
+        console.error("[AI_FOLLOWUP_ENGINE_FATAL]", error);
+      }
+    }, 10 * 1000);
 
     // 🔥 SLA TIMEOUT ENGINE (5 min)
     const SLA_TIMEOUT_MS = 5 * 60 * 1000;

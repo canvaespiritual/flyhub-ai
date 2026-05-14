@@ -89,8 +89,19 @@ async function findAgentForConversation(input: AiOrchestratorInput) {
         campaignId: input.campaignId
       },
       include: {
-        agent: true
-      }
+  agent: {
+    include: {
+      stages: { where: { isActive: true }, orderBy: { order: 'asc' } },
+      objections: { where: { isActive: true } },
+      resources: { where: { isActive: true } },
+      knowledgeTables: {
+        where: { isActive: true },
+        include: { rows: true }
+      },
+      successExamples: { where: { isActive: true } }
+    }
+  }
+}
     })
 
     if (campaignConfig?.agent?.isActive) {
@@ -99,14 +110,53 @@ async function findAgentForConversation(input: AiOrchestratorInput) {
   }
 
   return prisma.aiAgent.findFirst({
-    where: {
-      tenantId: input.tenantId,
-      isActive: true
+  where: {
+    tenantId: input.tenantId,
+    isActive: true
+  },
+
+  include: {
+    stages: {
+      where: {
+        isActive: true
+      },
+      orderBy: {
+        order: 'asc'
+      }
     },
-    orderBy: {
-      createdAt: 'asc'
+
+    objections: {
+      where: {
+        isActive: true
+      }
+    },
+
+    resources: {
+      where: {
+        isActive: true
+      }
+    },
+
+    knowledgeTables: {
+      where: {
+        isActive: true
+      },
+      include: {
+        rows: true
+      }
+    },
+
+    successExamples: {
+      where: {
+        isActive: true
+      }
     }
-  })
+  },
+
+  orderBy: {
+    createdAt: 'asc'
+  }
+})
 }
 
 export async function runAiOrchestrator(
