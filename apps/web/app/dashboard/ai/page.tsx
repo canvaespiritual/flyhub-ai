@@ -460,15 +460,21 @@ export default function AiPage() {
                 <div>• Se humano assumir, follow-up pausa</div>
               </div>
             </div>
-              
+              {(agent.followupRules || []).length >= 3 && (
+              <div className="mb-3 rounded-lg bg-amber-500/10 p-3 text-sm text-amber-300">
+                Máximo de 3 follow-ups automáticos por agente.
+              </div>
+            )}
             <ArrayEditor
               title="Follow-ups"
               items={agent.followupRules}
-              add={() =>
+              add={() => {
+                if ((agent.followupRules || []).length >= 3) return
+
                 addItem('followupRules', {
                   message: ''
                 })
-              }
+              }}
               remove={(i: number) => removeItem('followupRules', i)}
               render={(item: any, i: number) => (
                 <>

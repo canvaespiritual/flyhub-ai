@@ -6,6 +6,9 @@ import {
 } from './whatsapp.js'
 import { publish } from './realtime.js'
 import { applyMessageIdentityPrefix } from './message-identity.js'
+import {
+  scheduleNextConversationFollowup
+} from './ai/ai-followup-engine.js'
 
 type AutomationStepType =
   | 'TEXT'
@@ -638,6 +641,24 @@ if (claimed.count === 0) {
       type: 'conversation:mode_changed',
       payload: buildConversationRealtimePayload(completedConversation)
     })
+
+    const lastAutomationMessage = await prisma.message.findFirst({
+  where: {
+    conversationId: conversation.id,
+    direction: 'OUTBOUND'
+  },
+  orderBy: {
+    createdAt: 'desc'
+  }
+})
+
+if (lastAutomationMessage) {
+  await scheduleNextConversationFollowup({
+    conversationId: conversation.id,
+    baseMessageId: lastAutomationMessage.id,
+    baseDate: lastAutomationMessage.createdAt
+  })
+}
 
     console.log('[AUTOMATION_COMPLETED]', {
       conversationId: conversation.id

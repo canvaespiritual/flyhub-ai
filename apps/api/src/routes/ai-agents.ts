@@ -66,12 +66,10 @@ const aiAgentSchema = z.object({
   })).optional(),
 
   followupRules: z.array(z.object({
-    id: z.string().optional(),
-    delayMinutes: z.coerce.number().int().min(1).max(10080),
-    message: z.string().trim().min(1).max(10000),
-    windowType: z.enum(['SERVICE_24H', 'ENTRY_POINT_72H', 'TEMPLATE_AFTER_WINDOW']),
-    isActive: z.boolean().optional()
-  })).optional(),
+  id: z.string().optional(),
+  message: z.string().trim().min(1).max(10000),
+  isActive: z.boolean().optional()
+})).max(3).optional(),
 
   successExamples: z.array(z.object({
     id: z.string().optional(),
@@ -354,11 +352,19 @@ export async function aiAgentRoutes(app: FastifyInstance) {
 
       if (data.followupRules?.length) {
         await tx.aiFollowupRule.createMany({
-          data: data.followupRules.map((item) => ({
+          data: data.followupRules.map((item, index) => ({
             agentId: agent.id,
-            delayMinutes: item.delayMinutes,
+
+            delayMinutes:
+              index === 0
+                ? 120
+                : index === 1
+                  ? 240
+                  : 600,
+
+            windowType: 'SERVICE_24H',
+
             message: item.message,
-            windowType: item.windowType,
             isActive: item.isActive ?? true
           }))
         })
@@ -520,18 +526,25 @@ export async function aiAgentRoutes(app: FastifyInstance) {
         await tx.aiFollowupRule.deleteMany({ where: { agentId: parsedParams.data.id } })
 
         if (data.followupRules.length) {
-          await tx.aiFollowupRule.createMany({
-            data: data.followupRules.map((item) => ({
-              agentId: parsedParams.data.id,
-              delayMinutes: item.delayMinutes,
-              message: item.message,
-              windowType: item.windowType,
-              isActive: item.isActive ?? true
-            }))
-          })
-        }
-      }
+        await tx.aiFollowupRule.createMany({
+          data: data.followupRules.map((item, index) => ({
+            agentId: parsedParams.data.id,
 
+            delayMinutes:
+              index === 0
+                ? 120
+                : index === 1
+                  ? 240
+                  : 600,
+
+            windowType: 'SERVICE_24H',
+
+            message: item.message,
+            isActive: item.isActive ?? true
+          }))
+        })
+      }
+    }
       if (data.successExamples !== undefined) {
         await tx.aiSuccessExample.deleteMany({ where: { agentId: parsedParams.data.id } })
 
