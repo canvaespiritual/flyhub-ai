@@ -642,7 +642,7 @@ if (claimed.count === 0) {
       payload: buildConversationRealtimePayload(completedConversation)
     })
 
-    const lastAutomationMessage = await prisma.message.findFirst({
+   const lastAutomationMessage = await prisma.message.findFirst({
   where: {
     conversationId: conversation.id,
     direction: 'OUTBOUND'
@@ -652,6 +652,52 @@ if (claimed.count === 0) {
   }
 })
 
+const campaignAiConfig = conversation.campaignId
+  ? await prisma.campaignAiConfig.findUnique({
+      where: {
+        campaignId: conversation.campaignId
+      },
+      select: {
+        agentId: true
+      }
+    })
+  : null
+
+const fallbackAgent = campaignAiConfig
+  ? null
+  : await prisma.aiAgent.findFirst({
+      where: {
+        tenantId: conversation.tenantId,
+        isActive: true
+      },
+      orderBy: {
+        createdAt: 'asc'
+      },
+      select: {
+        id: true
+      }
+    })
+
+const agentId =
+  campaignAiConfig?.agentId ??
+  fallbackAgent?.id ??
+  null
+
+if (agentId) {
+  await prisma.conversationAiState.upsert({
+    where: {
+      conversationId: conversation.id
+    },
+    update: {
+      agentId
+    },
+    create: {
+      conversationId: conversation.id,
+      agentId
+    }
+  })
+}
+
 if (lastAutomationMessage) {
   await scheduleNextConversationFollowup({
     conversationId: conversation.id,
@@ -659,7 +705,6 @@ if (lastAutomationMessage) {
     baseDate: lastAutomationMessage.createdAt
   })
 }
-
     console.log('[AUTOMATION_COMPLETED]', {
       conversationId: conversation.id
     })
