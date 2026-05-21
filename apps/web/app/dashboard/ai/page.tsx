@@ -267,6 +267,17 @@ export default function AiPage() {
     const payload = {
   ...agent,
 
+  knowledgeTables: (agent.knowledgeTables || []).map((table: any) => ({
+    id: table.id,
+    name: table.name,
+    type: table.type,
+    isActive: table.isActive ?? true,
+    rows: (table.rows || []).map((row: any) => ({
+      id: row.id,
+      data: row.data
+    }))
+  })),
+
   followupRules: (agent.followupRules || []).map((item: any, index: number) => ({
     id: item.id,
     delayMinutes: index === 0 ? 120 : index === 1 ? 240 : 600,
