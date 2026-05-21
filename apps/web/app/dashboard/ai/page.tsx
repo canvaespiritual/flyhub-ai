@@ -67,6 +67,79 @@ function Input(props: any) {
   )
 }
 
+function normalizeColumnName(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, '_')
+    .replace(/[^\wÀ-ÿ]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+    .toLowerCase()
+}
+
+function parseCellValue(value: string) {
+  const trimmed = value.trim()
+
+  if (!trimmed) return null
+
+  const withoutCurrency = trimmed
+    .replace(/^R\$\s*/i, '')
+    .replace(/\s/g, '')
+
+  const looksLikeBrazilianNumber =
+    /^-?\d{1,3}(\.\d{3})*(,\d+)?$/.test(withoutCurrency)
+
+  const looksLikePlainNumber =
+    /^-?\d+(\.\d+)?$/.test(withoutCurrency)
+
+  if (looksLikeBrazilianNumber) {
+    return Number(withoutCurrency.replace(/\./g, '').replace(',', '.'))
+  }
+
+  if (looksLikePlainNumber && !withoutCurrency.startsWith('0')) {
+    return Number(withoutCurrency)
+  }
+
+  return trimmed
+}
+
+function parsePastedTableToRows(text: string) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim())
+
+  if (lines.length < 2) {
+    throw new Error('Cole pelo menos o cabeçalho e uma linha de dados.')
+  }
+
+  const delimiter = lines[0].includes('\t')
+    ? '\t'
+    : lines[0].includes(';')
+      ? ';'
+      : ','
+
+  const headers = lines[0]
+    .split(delimiter)
+    .map(normalizeColumnName)
+    .filter(Boolean)
+
+  if (!headers.length) {
+    throw new Error('Não foi possível identificar o cabeçalho da tabela.')
+  }
+
+  return lines.slice(1).map((line) => {
+    const values = line.split(delimiter)
+
+    const data = headers.reduce((acc: any, header, index) => {
+      acc[header] = parseCellValue(values[index] ?? '')
+      return acc
+    }, {})
+
+    return { data }
+  })
+}
+
 export default function AiPage() {
   const [agents, setAgents] = useState<any[]>([])
   const [campaigns, setCampaigns] = useState<any[]>([])
@@ -142,6 +215,21 @@ export default function AiPage() {
       [arrayName]: (prev[arrayName] || []).filter((_: any, i: number) => i !== index)
     }))
   }
+
+  function convertPastedTable(index: number, text: string) {
+  setError('')
+  setSuccess('')
+
+  try {
+    const rows = parsePastedTableToRows(text)
+
+    updateArrayItem('knowledgeTables', index, 'rows', rows)
+
+    setSuccess(`Tabela convertida com sucesso: ${rows.length} linhas importadas.`)
+  } catch (err: any) {
+    setError(err?.message || 'Erro ao converter tabela colada.')
+  }
+}
 
   async function handleCloneAgent() {
   if (!selectedId) return
@@ -459,30 +547,84 @@ export default function AiPage() {
           )}
 
           {tab === 'Tabelas' && (
-            <ArrayEditor
-              title="Tabelas de consulta"
-              items={agent.knowledgeTables}
-              add={() => addItem('knowledgeTables', { name: '', type: 'SIMULATION', rows: [], isActive: true })}
-              remove={(i: number) => removeItem('knowledgeTables', i)}
-              render={(item: any, i: number) => (
-                <>
-                  <Input placeholder="Nome da tabela" value={item.name || ''} onChange={(e: any) => updateArrayItem('knowledgeTables', i, 'name', e.target.value)} />
-                  <select value={item.type} onChange={(e) => updateArrayItem('knowledgeTables', i, 'type', e.target.value)} className="rounded-lg border border-neutral-700 bg-black p-3 text-sm text-white">
-                    {['SIMULATION', 'DOCUMENTS', 'PRICING', 'FAQ', 'CUSTOM'].map((type) => <option key={type}>{type}</option>)}
-                  </select>
-                  <Textarea
-                    placeholder='Linhas em JSON. Ex: [{"data":{"rendaMin":3000,"rendaMax":3500,"credito":"180k-210k"}}]'
-                    value={JSON.stringify(item.rows || [], null, 2)}
-                    onChange={(e: any) => {
-                      try {
-                        updateArrayItem('knowledgeTables', i, 'rows', JSON.parse(e.target.value || '[]'))
-                      } catch {}
-                    }}
-                  />
-                </>
-              )}
-            />
-          )}
+              <ArrayEditor
+                title="Tabelas de consulta"
+                items={agent.knowledgeTables}
+                add={() =>
+                  addItem('knowledgeTables', {
+                    name: '',
+                    type: 'SIMULATION',
+                    rows: [],
+                    isActive: true,
+                    pastedTableText: ''
+                  })
+                }
+                remove={(i: number) => removeItem('knowledgeTables', i)}
+                render={(item: any, i: number) => (
+                  <>
+                    <Input
+                      placeholder="Nome da tabela. Ex: simulacao_mcmv_grandes_centros"
+                      value={item.name || ''}
+                      onChange={(e: any) =>
+                        updateArrayItem('knowledgeTables', i, 'name', e.target.value)
+                      }
+                    />
+
+                    <select
+                      value={item.type}
+                      onChange={(e) =>
+                        updateArrayItem('knowledgeTables', i, 'type', e.target.value)
+                      }
+                      className="rounded-lg border border-neutral-700 bg-black p-3 text-sm text-white"
+                    >
+                      {['SIMULATION', 'DOCUMENTS', 'PRICING', 'FAQ', 'CUSTOM'].map((type) => (
+                        <option key={type}>{type}</option>
+                      ))}
+                    </select>
+
+                    <div className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-3 text-sm text-blue-100">
+                      Cole abaixo os dados copiados do Excel ou Google Sheets com o cabeçalho na primeira linha.
+                      Cada linha será transformada em um registro único para a IA consultar.
+                    </div>
+
+                    <Textarea
+                      placeholder={`Cole aqui a planilha copiada. Ex:\nrenda_lookup\tcredito_estimado\tentrada_estimada\n1500\t160000\t12000\n1600\t170000\t13000`}
+                      value={item.pastedTableText || ''}
+                      onChange={(e: any) =>
+                        updateArrayItem('knowledgeTables', i, 'pastedTableText', e.target.value)
+                      }
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => convertPastedTable(i, item.pastedTableText || '')}
+                      className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold"
+                    >
+                      Converter planilha colada para JSON
+                    </button>
+
+                    <div className="text-xs text-neutral-400">
+                      Linhas convertidas: {(item.rows || []).length}
+                    </div>
+
+                    <Textarea
+                      placeholder='JSON avançado. Ex: [{"data":{"renda_lookup":1600,"credito_estimado":170000}}]'
+                      value={JSON.stringify(item.rows || [], null, 2)}
+                      onChange={(e: any) => {
+                        try {
+                          updateArrayItem(
+                            'knowledgeTables',
+                            i,
+                            'rows',
+                            JSON.parse(e.target.value || '[]')
+                          )
+                        } catch {}
+                      }}
+                    />
+                  </>
+                )}
+              />
+            )}
 
           {tab === 'Follow-ups' && (
              <div>
