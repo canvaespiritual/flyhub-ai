@@ -21,8 +21,9 @@ import { pushSubscriptionRoutes } from './routes/push-subscriptions.js'
 
 export async function buildApp() {
   const app = Fastify({
-    logger: true
-  })
+  logger: true,
+  bodyLimit: 20 * 1024 * 1024
+})
 
   await app.register(cookie, {
     secret: process.env.COOKIE_SECRET || 'dev-cookie-secret-change-me'
