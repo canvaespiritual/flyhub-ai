@@ -65,37 +65,66 @@ export async function autoAssignConversation(input: AutoAssignInput) {
     conversation.managerId ?? conversation.campaign?.managerId ?? null
 
   const distributionRule = conversation.campaignId
-    ? await prisma.campaignDistributionRule.findFirst({
-        where: {
-          campaignId: conversation.campaignId,
-          isActive: true
-        },
-        include: {
-          members: {
-            where: {
-              isActive: true
-            },
-            orderBy: {
-              sortOrder: 'asc'
-            },
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  role: true,
-                  tenantId: true,
-                  isActive: true,
-                  presenceStatus: true,
-                  managerId: true
-                }
+  ? await prisma.campaignDistributionRule.findFirst({
+      where: {
+        campaignId: conversation.campaignId,
+        isActive: true
+      },
+      include: {
+        members: {
+          where: {
+            isActive: true
+          },
+          orderBy: {
+            sortOrder: 'asc'
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                tenantId: true,
+                isActive: true,
+                presenceStatus: true,
+                managerId: true
               }
             }
           }
         }
-      })
-    : null
+      }
+    })
+  : await prisma.unmatchedLeadDistributionRule.findFirst({
+      where: {
+        tenantId,
+        isActive: true
+      },
+      include: {
+        members: {
+          where: {
+            isActive: true
+          },
+          orderBy: {
+            sortOrder: 'asc'
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                tenantId: true,
+                isActive: true,
+                presenceStatus: true,
+                managerId: true
+              }
+            }
+          }
+        }
+      }
+    })
 
   const scopedUsers = await prisma.user.findMany({
     where: {
@@ -126,7 +155,7 @@ export async function autoAssignConversation(input: AutoAssignInput) {
   let targetUser: { id: string; userId?: string } | null = null
 
   // ==============================
-  // 🎯 DISTRIBUIÇÃO POR CAMPANHA
+  // 🎯 DISTRIBUIÇÃO POR CAMPANHA OU LEAD SEM CAMPANHA
   // ==============================
 
   if (distributionRule && distributionRule.members.length > 0) {

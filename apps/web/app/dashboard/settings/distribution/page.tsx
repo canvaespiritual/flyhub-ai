@@ -20,11 +20,19 @@ export default function DistributionPage() {
     async function load() {
       try {
         const data = await getCampaigns()
-        setCampaigns(data || [])
+        const normalizedCampaigns = [
+            ...(data || []),
+            {
+              id: '__UNMATCHED__',
+              name: '⚠️ Leads sem campanha identificada'
+            }
+          ]
 
-        if (data?.length) {
-          setSelectedCampaignId(data[0].id)
-        }
+          setCampaigns(normalizedCampaigns)
+
+          if (normalizedCampaigns.length) {
+            setSelectedCampaignId(normalizedCampaigns[0].id)
+          }
       } finally {
         setLoading(false)
       }
@@ -47,13 +55,22 @@ export default function DistributionPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0b141a] p-6 text-white">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Distribuição</h1>
-        <p className="mt-2 text-sm text-neutral-400">
-          Selecione uma campanha para configurar a rotação e a lógica operacional.
-        </p>
-      </div>
+      <main className="h-screen overflow-y-auto bg-[#0b141a] p-6 text-white">
+      <div className="mb-6 flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">Distribuição</h1>
+            <p className="mt-2 text-sm text-neutral-400">
+              Selecione uma campanha para configurar a rotação e a lógica operacional.
+            </p>
+          </div>
+
+          <a
+            href="/dashboard/settings"
+            className="rounded-lg border border-neutral-700 bg-[#111b21] px-4 py-2 text-sm text-white hover:bg-neutral-800"
+          >
+            Voltar
+          </a>
+        </div>
 
       <div className="mb-6 rounded-2xl border border-neutral-800 bg-[#111b21] p-5">
         <label className="mb-2 block text-sm font-medium text-neutral-300">

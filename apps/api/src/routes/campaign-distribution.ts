@@ -346,6 +346,244 @@ export async function campaignDistributionRoutes(app: FastifyInstance) {
       })
     })
 
-    return reply.send(serializeRule(savedRule))
+       return reply.send(serializeRule(savedRule))
+  })
+
+  app.get('/distribution/unmatched-leads', async (req, reply) => {
+    const session = await getSessionFromRequest(req)
+
+    if (!session) {
+      return reply.status(401).send({
+        message: 'Não autenticado'
+      })
+    }
+
+    const rule = await prisma.unmatchedLeadDistributionRule.findUnique({
+      where: {
+        tenantId: session.user.tenantId
+      },
+      include: {
+        members: {
+          orderBy: {
+            sortOrder: 'asc'
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        }
+      }
+    })
+
+    if (!rule) {
+      return reply.send(null)
+    }
+
+    return reply.send({
+      id: rule.id,
+      tenantId: rule.tenantId,
+      mode: rule.mode,
+      isActive: rule.isActive,
+      reassignOnTimeout: rule.reassignOnTimeout,
+      responseTimeoutSeconds: rule.responseTimeoutSeconds,
+      viewTimeoutSeconds: rule.viewTimeoutSeconds ?? undefined,
+      onlyBusinessHours: rule.onlyBusinessHours,
+      createdAt: rule.createdAt.toISOString(),
+      updatedAt: rule.updatedAt.toISOString(),
+      members: rule.members.map((member) => ({
+        id: member.id,
+        userId: member.userId,
+        sortOrder: member.sortOrder,
+        isActive: member.isActive,
+        createdAt: member.createdAt.toISOString(),
+        updatedAt: member.updatedAt.toISOString(),
+        user: member.user
+      }))
+    })
+  })
+
+  app.patch('/distribution/unmatched-leads', async (req, reply) => {
+    const session = await getSessionFromRequest(req)
+
+    if (!session) {
+      return reply.status(401).send({
+        message: 'Não autenticado'
+      })
+    }
+
+    if (session.user.role !== 'ADMIN') {
+      return reply.status(403).send({
+        message: 'Sem permissão para configurar distribuição'
+      })
+    }
+
+    const parsedBody = updateSchema.safeParse(req.body)
+
+    if (!parsedBody.success) {
+      return reply.status(400).send({
+        message: 'Dados inválidos',
+        issues: parsedBody.error.flatten()
+      })
+    }
+
+    const body = parsedBody.data
+
+    const uniqueUserIds = [
+      ...new Set(body.members.map((member) => member.userId))
+    ]
+
+    const uniqueSortOrders = [
+      ...new Set(body.members.map((member) => member.sortOrder))
+    ]
+
+    if (uniqueSortOrders.length !== body.members.length) {
+      return reply.status(400).send({
+        message: 'Os membros não podem ter sortOrder repetido'
+      })
+    }
+
+    if (uniqueUserIds.length !== body.members.length) {
+      return reply.status(400).send({
+        message: 'Os membros não podem repetir userId'
+      })
+    }
+
+    if (body.members.length > 0) {
+      const validAgents = await prisma.user.findMany({
+        where: {
+          tenantId: session.user.tenantId,
+          isActive: true,
+          role: 'AGENT',
+          id: {
+            in: uniqueUserIds
+          }
+        },
+        select: {
+          id: true
+        }
+      })
+
+      const validAgentIds = new Set(validAgents.map((user) => user.id))
+
+      const invalidUserId = uniqueUserIds.find(
+        (userId) => !validAgentIds.has(userId)
+      )
+
+      if (invalidUserId) {
+        return reply.status(400).send({
+          message: 'Há atendentes inválidos'
+        })
+      }
+    }
+
+    const usesQueueTimeout = body.mode === 'QUEUE_WITH_TIMEOUT'
+
+    const savedRule = await prisma.$transaction(async (tx) => {
+      let existing =
+        await tx.unmatchedLeadDistributionRule.findUnique({
+          where: {
+            tenantId: session.user.tenantId
+          }
+        })
+
+      if (!existing) {
+        existing =
+          await tx.unmatchedLeadDistributionRule.create({
+            data: {
+              tenantId: session.user.tenantId,
+              mode: body.mode,
+              isActive: true,
+              reassignOnTimeout: usesQueueTimeout
+                ? body.reassignOnTimeout
+                : false,
+              responseTimeoutSeconds: usesQueueTimeout
+                ? body.responseTimeoutSeconds
+                : 300
+            }
+          })
+      } else {
+        existing =
+          await tx.unmatchedLeadDistributionRule.update({
+            where: {
+              tenantId: session.user.tenantId
+            },
+            data: {
+              mode: body.mode,
+              isActive: true,
+              reassignOnTimeout: usesQueueTimeout
+                ? body.reassignOnTimeout
+                : false,
+              responseTimeoutSeconds: usesQueueTimeout
+                ? body.responseTimeoutSeconds
+                : 300
+            }
+          })
+      }
+
+      await tx.unmatchedLeadDistributionMember.deleteMany({
+        where: {
+          ruleId: existing.id
+        }
+      })
+
+      if (body.members.length > 0) {
+        await tx.unmatchedLeadDistributionMember.createMany({
+          data: body.members.map((member) => ({
+            ruleId: existing!.id,
+            userId: member.userId,
+            sortOrder: member.sortOrder
+          }))
+        })
+      }
+
+      return tx.unmatchedLeadDistributionRule.findUniqueOrThrow({
+        where: {
+          tenantId: session.user.tenantId
+        },
+        include: {
+          members: {
+            orderBy: {
+              sortOrder: 'asc'
+            },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true
+                }
+              }
+            }
+          }
+        }
+      })
+    })
+
+    return reply.send({
+      id: savedRule.id,
+      tenantId: savedRule.tenantId,
+      mode: savedRule.mode,
+      isActive: savedRule.isActive,
+      reassignOnTimeout: savedRule.reassignOnTimeout,
+      responseTimeoutSeconds: savedRule.responseTimeoutSeconds,
+      viewTimeoutSeconds: savedRule.viewTimeoutSeconds ?? undefined,
+      onlyBusinessHours: savedRule.onlyBusinessHours,
+      createdAt: savedRule.createdAt.toISOString(),
+      updatedAt: savedRule.updatedAt.toISOString(),
+      members: savedRule.members.map((member) => ({
+        id: member.id,
+        userId: member.userId,
+        sortOrder: member.sortOrder,
+        isActive: member.isActive,
+        createdAt: member.createdAt.toISOString(),
+        updatedAt: member.updatedAt.toISOString(),
+        user: member.user
+      }))
+    })
   })
 }

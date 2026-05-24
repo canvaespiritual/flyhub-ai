@@ -30,6 +30,7 @@ model Tenant {
   whatsappConnections WhatsAppConnection[]
   aiAgents           AiAgent[]
   pushSubscriptions PushSubscription[]
+  unmatchedLeadDistributionRules UnmatchedLeadDistributionRule[]
 }
 
 model PhoneNumber {
@@ -93,6 +94,7 @@ model User {
   managedPhoneNumbers       PhoneNumber[]                @relation("PhoneNumberManager")
   managedDistributionRules  CampaignDistributionRule[]
   distributionMembers       CampaignDistributionMember[]
+  unmatchedDistributionMembers UnmatchedLeadDistributionMember[]
   assignedByEvents          Assignment[]                 @relation("AssignmentAssignedByUser")
   createdTemplates          MessageTemplate[]            @relation("MessageTemplateCreatedByUser")
   createdBroadcasts         Broadcast[]                  @relation("BroadcastCreatedByUser")
@@ -291,6 +293,54 @@ model CampaignDistributionMember {
   @@unique([ruleId, sortOrder])
   @@index([userId, isActive])
 }
+
+model UnmatchedLeadDistributionRule {
+  id                     String                   @id @default(cuid())
+  tenantId               String
+  mode                   CampaignDistributionMode @default(ROUND_ROBIN)
+  isActive               Boolean                  @default(false)
+  reassignOnTimeout      Boolean                  @default(false)
+  responseTimeoutSeconds Int                      @default(300)
+
+  viewTimeoutSeconds     Int?
+  onlyBusinessHours      Boolean                  @default(false)
+
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+
+  tenant                 Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members                UnmatchedLeadDistributionMember[]
+
+  @@unique([tenantId])
+  @@index([tenantId, isActive])
+  @@index([mode, isActive])
+}
+
+model UnmatchedLeadDistributionMember {
+  id         String   @id @default(cuid())
+  ruleId     String
+  userId     String
+  sortOrder  Int
+  isActive   Boolean  @default(true)
+
+  shiftStartHour Int?
+  shiftEndHour   Int?
+  shiftDays      Int[]
+  timezone       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rule      UnmatchedLeadDistributionRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  user      User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([ruleId, userId])
+  @@unique([ruleId, sortOrder])
+  @@index([userId, isActive])
+}
+
+
+
 
 model Conversation {
   id              String             @id @default(cuid())

@@ -566,6 +566,44 @@ export async function updateCampaignDistribution(id: string, data: any) {
   return res.json()
 }
 
+export async function getUnmatchedLeadDistribution() {
+  const res = await apiFetch(
+    `${API_BASE_URL}/distribution/unmatched-leads`,
+    {
+      cache: 'no-store'
+    }
+  )
+
+  if (!res.ok) {
+    if (res.status === 404) return null
+    throw await parseApiError(
+      res,
+      'Erro ao buscar distribuição de leads sem campanha'
+    )
+  }
+
+  return res.json()
+}
+
+export async function updateUnmatchedLeadDistribution(data: any) {
+  const res = await apiFetch(
+    `${API_BASE_URL}/distribution/unmatched-leads`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    }
+  )
+
+  if (!res.ok) {
+    throw await parseApiError(
+      res,
+      'Erro ao salvar distribuição de leads sem campanha'
+    )
+  }
+
+  return res.json()
+}
+
 export type PhoneNumberPayload = {
   number: string
   label?: string | null

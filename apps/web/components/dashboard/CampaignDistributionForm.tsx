@@ -5,7 +5,9 @@ import {
   getCampaigns,
   getUsers,
   getCampaignDistribution,
-  updateCampaignDistribution
+  updateCampaignDistribution,
+  getUnmatchedLeadDistribution,
+  updateUnmatchedLeadDistribution
 } from '@/lib/api'
 
 type CampaignDistributionFormProps = {
@@ -109,10 +111,14 @@ export default function CampaignDistributionForm({
       setError('')
       setSuccess('')
 
+      const isUnmatched = campaignId === '__UNMATCHED__'
+
       const [campaigns, users, distribution] = await Promise.all([
         getCampaigns(),
         getUsers({ status: 'active' }),
-        getCampaignDistribution(campaignId)
+        isUnmatched
+          ? getUnmatchedLeadDistribution()
+          : getCampaignDistribution(campaignId)
       ])
 
       const foundCampaign =
@@ -176,15 +182,23 @@ export default function CampaignDistributionForm({
   }, [campaign, allUsers])
 
   const managerAgents = useMemo(() => {
-    if (!campaign?.managerId) return []
+  const isUnmatched = campaignId === '__UNMATCHED__'
 
+  if (isUnmatched) {
     return allUsers.filter(
-      (user) =>
-        user.role === 'agent' &&
-        user.isActive &&
-        user.managerId === campaign.managerId
+      (user) => user.role === 'agent' && user.isActive
     )
-  }, [allUsers, campaign])
+  }
+
+  if (!campaign?.managerId) return []
+
+  return allUsers.filter(
+    (user) =>
+      user.role === 'agent' &&
+      user.isActive &&
+      user.managerId === campaign.managerId
+  )
+}, [allUsers, campaign, campaignId])
 
   useEffect(() => {
     if (managerAgents.length === 0) {
@@ -305,10 +319,10 @@ export default function CampaignDistributionForm({
       setError('')
       setSuccess('')
 
-      if (!campaign?.managerId) {
-        setError('Essa campanha precisa ter um manager definido antes da distribuição.')
-        return
-      }
+      if (campaignId !== '__UNMATCHED__' && !campaign?.managerId) {
+  setError('Essa campanha precisa ter um manager definido antes da distribuição.')
+  return
+}
 
       if (requiresMembers && selectedAgentIds.length === 0) {
         setError('Selecione pelo menos um atendente para essa distribuição.')
@@ -330,7 +344,30 @@ export default function CampaignDistributionForm({
         return
       }
 
-      await updateCampaignDistribution(campaignId, {
+      if (campaignId === '__UNMATCHED__') {
+  await updateUnmatchedLeadDistribution({
+    mode,
+    reassignOnTimeout: usesTimeoutQueue
+      ? reassignOnTimeout
+      : false,
+    responseTimeoutSeconds: usesTimeoutQueue
+      ? responseTimeoutSeconds
+      : 300,
+    members: sanitizedSelectedAgentIds.map(
+      (userId, index) => ({
+        userId,
+        sortOrder: index + 1,
+        shiftStartHour:
+          shifts[userId]?.shiftStartHour ?? null,
+        shiftEndHour:
+          shifts[userId]?.shiftEndHour ?? null,
+        shiftDays:
+          shifts[userId]?.shiftDays ?? []
+      })
+    )
+  })
+} else {
+  await updateCampaignDistribution(campaignId, {
         mode,
         reassignOnTimeout: usesTimeoutQueue ? reassignOnTimeout : false,
         responseTimeoutSeconds: usesTimeoutQueue ? responseTimeoutSeconds : 300,
@@ -342,7 +379,7 @@ export default function CampaignDistributionForm({
           shiftDays: shifts[userId]?.shiftDays ?? []
         }))
       })
-
+    }
       setSuccess('Distribuição salva com sucesso.')
       await load()
     } catch (err: any) {
@@ -351,11 +388,11 @@ export default function CampaignDistributionForm({
       setSaving(false)
     }
   }
-
+  
   if (loading) {
     return <div className="text-neutral-400">Carregando configuração de distribuição...</div>
   }
-
+  
   return (
     <div className="space-y-6 text-white">
       <div>
@@ -458,7 +495,9 @@ export default function CampaignDistributionForm({
         <div className="mb-3">
           <h3 className="text-base font-semibold text-white">Atendentes da gerência</h3>
           <p className="mt-1 text-sm text-neutral-400">
-            Só aparecem agents vinculados ao manager desta campanha.
+            {campaignId === '__UNMATCHED__'
+            ? 'Configure quem receberá leads sem campanha identificada.'
+            : 'Só aparecem agents vinculados ao manager desta campanha.'}
           </p>
         </div>
 
