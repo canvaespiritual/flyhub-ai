@@ -886,8 +886,20 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
               type: 'message:new',
               payload: mapRealtimeMessage(createdMessage)
             })
-            const shouldStartInitialSequence =
-  baseData.isNewConversation && Boolean(baseData.conversation.campaignId)
+            const activeInitialStepsCount =
+  baseData.conversation.campaignId
+    ? await prisma.campaignInitialStep.count({
+        where: {
+          campaignId: baseData.conversation.campaignId,
+          isActive: true
+        }
+      })
+    : 0
+
+const shouldStartInitialSequence =
+  baseData.isNewConversation &&
+  Boolean(baseData.conversation.campaignId) &&
+  activeInitialStepsCount > 0
 
 if (shouldStartInitialSequence) {
   try {
