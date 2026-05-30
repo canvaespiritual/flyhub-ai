@@ -15,6 +15,8 @@ import {
 } from '../lib/storage.js'
 import { startInitialSequenceForConversation } from '../lib/conversation-automation.js'
 import { runAiOrchestrator } from '../lib/ai/ai-orchestrator.js'
+import { syncSystemLeadFields } from '../lib/system-lead-fields.js'
+import { runLeadExtractorForConversation } from '../lib/lead-extractor.js'
 import { notifyInboundMessagePush } from '../lib/push.js'
 import { applyMessageIdentityPrefix } from '../lib/message-identity.js'
 import {
@@ -886,15 +888,36 @@ export async function whatsappWebhookRoutes(app: FastifyInstance) {
               type: 'message:new',
               payload: mapRealtimeMessage(createdMessage)
             })
+
+            try {
+              await syncSystemLeadFields({
+                tenantId,
+                conversationId: baseData.conversation.id
+              })
+
+              await runLeadExtractorForConversation({
+                tenantId,
+                conversationId: baseData.conversation.id
+              })
+            } catch (error) {
+              request.log.error(
+                {
+                  error,
+                  conversationId: baseData.conversation.id
+                },
+                'Failed to sync lead fields / run extractor'
+              )
+            }
+
             const activeInitialStepsCount =
-  baseData.conversation.campaignId
-    ? await prisma.campaignInitialStep.count({
-        where: {
-          campaignId: baseData.conversation.campaignId,
-          isActive: true
-        }
-      })
-    : 0
+            baseData.conversation.campaignId
+              ? await prisma.campaignInitialStep.count({
+                  where: {
+                    campaignId: baseData.conversation.campaignId,
+                    isActive: true
+                  }
+                })
+              : 0
 
 const shouldStartInitialSequence =
   baseData.isNewConversation &&
