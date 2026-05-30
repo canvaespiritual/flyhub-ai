@@ -109,6 +109,230 @@ function normalizeValueForField(field: ExtractableField, value: unknown) {
   return value
 }
 
+const APPROX_MINIMUM_WAGE = 1500
+
+function hasIncomeContext(text: string) {
+  const normalized = text.toLowerCase()
+
+  return [
+    'renda',
+    'salário',
+    'salario',
+    'ganha',
+    'ganho',
+    'recebe',
+    'recebo',
+    'bruta',
+    'mensal',
+    'compradores',
+    'compor renda'
+  ].some((word) => normalized.includes(word))
+}
+
+function hasNonIncomeContext(text: string) {
+  const normalized = text.toLowerCase()
+
+  return [
+    'entrada',
+    'sinal',
+    'cpf',
+    'nascimento',
+    'nasceu',
+    'data',
+    'parcela',
+    'documento',
+    'opção',
+    'opcao',
+    'região',
+    'regiao',
+    'bairro'
+  ].some((word) => normalized.includes(word))
+}
+
+function parseBrazilianMoneyToken(token: string) {
+  const normalized = token
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/r\$/g, '')
+
+  if (/^\d+[,.]?\d*k$/.test(normalized)) {
+    const value = Number(normalized.replace('k', '').replace(',', '.'))
+    return Number.isFinite(value) ? value * 1000 : null
+  }
+
+  if (/^\d+[,.]?\d*mil$/.test(normalized)) {
+    const value = Number(normalized.replace('mil', '').replace(',', '.'))
+    return Number.isFinite(value) ? value * 1000 : null
+  }
+
+  const onlyNumber = normalized.replace(/\./g, '').replace(',', '.')
+  const parsed = Number(onlyNumber)
+
+  if (!Number.isFinite(parsed)) return null
+
+  if (parsed > 100000) return null
+
+  if (parsed > 0 && parsed < 100 && !normalized.includes('.') && !normalized.includes(',')) {
+    return parsed * 1000
+  }
+
+  return parsed
+}
+
+function detectIncomeFromText(text: string) {
+  const normalized = text.toLowerCase()
+
+  if (normalized.includes('salário mínimo') || normalized.includes('salario minimo')) {
+    const spouseMatch = normalized.match(/(?:marido|esposa|mulher|companheiro|companheira).{0,20}?(\d+[,.]?\d*)\s*(mil|k)?/)
+    const spouseValue = spouseMatch
+      ? parseBrazilianMoneyToken(`${spouseMatch[1]}${spouseMatch[2] ?? ''}`)
+      : null
+
+    return APPROX_MINIMUM_WAGE + (spouseValue ?? 0)
+  }
+
+  const plusMatch = normalized.match(/(\d+[,.]?\d*)\s*(mil|k)?\s*\+\s*(\d+[,.]?\d*)\s*(mil|k)?/)
+  if (plusMatch) {
+    const first = parseBrazilianMoneyToken(`${plusMatch[1]}${plusMatch[2] ?? ''}`)
+    const second = parseBrazilianMoneyToken(`${plusMatch[3]}${plusMatch[4] ?? ''}`)
+
+    if (first && second) return first + second
+  }
+
+  const personIncomeMatches = [
+    ...normalized.matchAll(
+      /(?:eu|minha|meu|marido|esposa|mulher|companheiro|companheira|dele|dela).{0,20}?(\d+[,.]?\d*)\s*(mil|k)?/g
+    )
+  ]
+
+  if (personIncomeMatches.length >= 2) {
+    const values = personIncomeMatches
+      .map((match) => parseBrazilianMoneyToken(`${match[1]}${match[2] ?? ''}`))
+      .filter((value): value is number => Boolean(value))
+
+    if (values.length >= 2) return values.reduce((sum, value) => sum + value, 0)
+  }
+
+  const moneyMatches = [
+    ...normalized.matchAll(/(?:r\$?\s*)?(\d{1,3}(?:\.\d{3})+|\d+[,.]\d+|\d+)\s*(mil|k)?/g)
+  ]
+
+  const values = moneyMatches
+    .map((match) => parseBrazilianMoneyToken(`${match[1]}${match[2] ?? ''}`))
+    .filter((value): value is number => Boolean(value && value >= 1000 && value <= 100000))
+
+  if (values.length === 0) return null
+
+  if (values.length >= 2 && /esposa|marido|mulher|companheiro|companheira|somando|junto|mais|\+/.test(normalized)) {
+    return values.reduce((sum, value) => sum + value, 0)
+  }
+
+  return values[0] ?? null
+}
+
+async function detectAndSaveIncome(params: {
+  conversationId: string
+  fields: ExtractableField[]
+  orderedMessages: Array<{
+    senderType: 'LEAD' | 'AGENT' | 'AI' | 'SYSTEM'
+    content: string | null
+    transcription: string | null
+  }>
+}) {
+  const incomeField = params.fields.find((field) =>
+    ['valor_renda_familiar', 'renda_familiar'].includes(field.key)
+  )
+
+  if (!incomeField) return null
+
+  for (let index = params.orderedMessages.length - 1; index >= 0; index--) {
+    const message = params.orderedMessages[index]
+    if (message.senderType !== 'LEAD') continue
+
+    const leadText = message.transcription?.trim() || message.content?.trim() || ''
+    if (!leadText) continue
+
+    const previous = params.orderedMessages[index - 1]
+    const previousText = previous?.transcription?.trim() || previous?.content?.trim() || ''
+
+    const contextText = `${previousText}\n${leadText}`
+
+    const hasContext =
+      hasIncomeContext(contextText) || hasIncomeContext(leadText)
+
+    const blocked =
+      hasNonIncomeContext(leadText) && !hasIncomeContext(contextText)
+
+    if (!hasContext || blocked) continue
+
+    const income = detectIncomeFromText(leadText)
+
+    if (!income) continue
+
+    const previousValue = await prisma.conversationFieldValue.findUnique({
+      where: {
+        conversationId_fieldId: {
+          conversationId: params.conversationId,
+          fieldId: incomeField.id
+        }
+      }
+    })
+
+    const displayValue = `R$ ${income.toLocaleString('pt-BR')}`
+
+    const saved = await prisma.$transaction(async (tx) => {
+      const value = await tx.conversationFieldValue.upsert({
+        where: {
+          conversationId_fieldId: {
+            conversationId: params.conversationId,
+            fieldId: incomeField.id
+          }
+        },
+        update: {
+          value: income,
+          displayValue,
+          source: 'AI',
+          confidence: 0.95,
+          evidence: leadText
+        },
+        create: {
+          conversationId: params.conversationId,
+          fieldId: incomeField.id,
+          value: income,
+          displayValue,
+          source: 'AI',
+          confidence: 0.95,
+          evidence: leadText
+        }
+      })
+
+      await tx.conversationFieldAuditLog.create({
+        data: {
+          conversationId: params.conversationId,
+          fieldId: incomeField.id,
+          oldValue: previousValue?.value ?? undefined,
+          newValue: income,
+          source: 'AI',
+          evidence: leadText
+        }
+      })
+
+      return value
+    })
+
+    return {
+      key: incomeField.key,
+      fieldId: incomeField.id,
+      value: saved.value,
+      displayValue: saved.displayValue,
+      confidence: saved.confidence,
+      evidence: saved.evidence
+    }
+  }
+
+  return null
+}
+
 function buildExtractorPrompt(params: {
   fields: ExtractableField[]
   messagesText: string
@@ -545,7 +769,23 @@ export async function runLeadExtractorForConversation(params: {
         evidence: saved.evidence
       })
     }
+    const deterministicIncome = await detectAndSaveIncome({
+  conversationId: params.conversationId,
+  fields,
+  orderedMessages
+})
 
+if (deterministicIncome) {
+  const existingIndex = savedUpdates.findIndex(
+    (item) => item.key === deterministicIncome.key
+  )
+
+  if (existingIndex >= 0) {
+    savedUpdates[existingIndex] = deterministicIncome
+  } else {
+    savedUpdates.push(deterministicIncome)
+  }
+}
     await prisma.leadExtractionRun.create({
       data: {
         tenantId: params.tenantId,
