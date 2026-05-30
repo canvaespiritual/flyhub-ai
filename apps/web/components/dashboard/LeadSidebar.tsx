@@ -76,7 +76,30 @@ function getInputType(type: ConversationFieldEntry['field']['type']) {
 function canEditField(entry: ConversationFieldEntry) {
   return entry.field.sourceMode !== 'SYSTEM'
 }
+function buildLeadSummary(
+  lead: Lead,
+  formattedPhone: string,
+  entries: ConversationFieldEntry[]
+) {
+  const lines = [
+    '📋 RESUMO DO LEAD',
+    '',
+    `Nome WhatsApp: ${lead.name}`,
+    `Telefone: ${formattedPhone}`,
+    `Email: ${lead.email || '—'}`,
+    ''
+  ]
 
+  for (const entry of entries) {
+    if (!entry.field.isVisibleOnCard) continue
+
+    const value = formatFieldValue(entry)
+
+    lines.push(`${entry.field.label}: ${value}`)
+  }
+
+  return lines.join('\n')
+}
 export function LeadSidebar({ lead, conversationId }: Props) {
   const [entries, setEntries] = useState<ConversationFieldEntry[]>([])
   const [loadingFields, setLoadingFields] = useState(false)
@@ -87,6 +110,22 @@ export function LeadSidebar({ lead, conversationId }: Props) {
   const waPhone = normalizePhoneForWhatsApp(lead.phone)
   const waLink = waPhone ? `https://wa.me/${waPhone}` : null
   const formattedPhone = formatPhone(lead.phone)
+  async function copyLeadSummary() {
+  try {
+    const summary = buildLeadSummary(
+      lead,
+      formattedPhone,
+      visibleEntries
+    )
+
+    await navigator.clipboard.writeText(summary)
+
+    alert('Resumo copiado ✓')
+  } catch (error) {
+    console.error(error)
+    alert('Erro ao copiar resumo')
+  }
+}
 
   const visibleEntries = useMemo(() => {
     return entries.filter((entry) => entry.field.isActive && entry.field.isVisibleOnCard)
@@ -150,9 +189,12 @@ export function LeadSidebar({ lead, conversationId }: Props) {
   }
 
   return (
-    <aside className="h-full overflow-y-auto border-l border-neutral-800 bg-[#111b21] p-4 text-white">
-      <h3 className="mb-4 text-lg">Lead</h3>
+  <aside className="flex h-full min-h-0 flex-col border-l border-neutral-800 bg-[#111b21] text-white">
+      <div className="border-b border-neutral-800 p-4">
+        <h3 className="text-lg">Lead</h3>
+      </div>
 
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
       <div className="space-y-2 text-sm">
         <p>
           <span className="text-neutral-400">Nome:</span> {lead.name}
@@ -183,17 +225,29 @@ export function LeadSidebar({ lead, conversationId }: Props) {
       <div className="my-4 border-t border-neutral-800" />
 
       <div className="mb-3 flex items-center justify-between">
-        <h4 className="text-sm font-semibold">Ficha do Lead</h4>
+  <h4 className="text-sm font-semibold">Ficha do Lead</h4>
 
-        <button
-          type="button"
-          onClick={loadFields}
-          className="text-xs text-[#53bdeb] hover:underline"
-        >
-          Atualizar
-        </button>
-      </div>
+  <div className="flex items-center gap-3">
+    <button
+      type="button"
+      onClick={copyLeadSummary}
+      title="Copiar resumo do lead"
+      className="text-sm hover:opacity-80"
+    >
+      📋
+    </button>
 
+    <button
+      type="button"
+      onClick={loadFields}
+      className="text-xs text-[#53bdeb] hover:underline"
+    >
+      Atualizar
+    </button>
+  </div>
+</div>
+         
+  
       {loadingFields ? (
         <p className="text-sm text-neutral-400">Carregando ficha...</p>
       ) : visibleEntries.length === 0 ? (
@@ -280,6 +334,7 @@ export function LeadSidebar({ lead, conversationId }: Props) {
           })}
         </div>
       )}
+       </div>
     </aside>
   )
 }

@@ -847,7 +847,7 @@ async function handleTogglePush() {
   }
 
   const desktopContent = !selectedConversation ? (
-    <div className="grid h-full overflow-hidden grid-cols-[320px_1fr] xl:grid-cols-[320px_1fr_340px]">
+    <div className="grid h-full min-h-0 overflow-hidden grid-cols-[320px_1fr] xl:grid-cols-[320px_1fr_340px]">
       <ConversationList
         conversations={conversations}
         selectedConversationId={selectedConversationId}
@@ -868,7 +868,7 @@ async function handleTogglePush() {
       <div className="hidden border-l border-neutral-800 xl:block" />
     </div>
   ) : (
-    <div className="grid h-full overflow-hidden grid-cols-[320px_1fr] xl:grid-cols-[320px_1fr_340px]">
+    <div className="grid h-full min-h-0 overflow-hidden grid-cols-[320px_1fr] xl:grid-cols-[320px_1fr_340px]">
       <ConversationList
         conversations={conversations}
         selectedConversationId={selectedConversationId}
@@ -879,7 +879,7 @@ async function handleTogglePush() {
         onAssignConversation={handleAssignConversation}
         assigningConversationId={assigningConversationId}
       />
-
+      <div className="h-full min-h-0 overflow-hidden">
       <ChatWindow
         selectedConversation={selectedConversation}
         messages={messages}
@@ -900,8 +900,8 @@ async function handleTogglePush() {
         loadingOlderMessages={loadingOlderMessages}
         onLoadOlderMessages={loadOlderMessages}
       />
-
-      <div className="hidden h-full xl:block">
+</div>
+      <div className="hidden h-full min-h-0 overflow-hidden xl:block">
   {lead && selectedConversation ? (
     <LeadSidebar lead={lead} conversationId={selectedConversation.id} />
   ) : null}
@@ -962,7 +962,7 @@ async function handleTogglePush() {
             </div>
           )}
 
-          <div className="h-[calc(100vh-61px)]">{desktopContent}</div>
+          <div className="h-[calc(100vh-61px)] min-h-0 overflow-hidden">{desktopContent}</div>
         </AppShell>
       </div>
 
@@ -1042,7 +1042,7 @@ async function handleTogglePush() {
                   </div>
                 </div>
               ) : null}
-
+              <div className="h-full min-h-0 overflow-hidden">
               <ChatWindow
                 selectedConversation={selectedConversation}
                 messages={messages}
@@ -1064,6 +1064,7 @@ async function handleTogglePush() {
                 loadingOlderMessages={loadingOlderMessages}
                 onLoadOlderMessages={loadOlderMessages}
               />
+              </div>
             </>
           )}
         </div>
