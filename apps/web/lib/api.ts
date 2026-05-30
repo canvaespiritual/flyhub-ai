@@ -996,3 +996,305 @@ export async function sendPushTest() {
   return res.json()
 }
 
+export type LeadFieldType =
+  | 'TEXT'
+  | 'NUMBER'
+  | 'MONEY'
+  | 'BOOLEAN'
+  | 'DATE'
+  | 'SELECT'
+  | 'MULTI_SELECT'
+  | 'PHONE'
+  | 'EMAIL'
+  | 'URL'
+  | 'JSON'
+
+export type LeadFieldSourceMode =
+  | 'SYSTEM'
+  | 'AI'
+  | 'HUMAN'
+  | 'AI_HUMAN'
+  | 'SYSTEM_HUMAN'
+
+export type LeadFieldValueSource = 'SYSTEM' | 'AI' | 'HUMAN'
+
+export type LeadFieldDefinition = {
+  id: string
+  tenantId: string
+  key: string
+  label: string
+  description?: string | null
+  type: LeadFieldType
+  sourceMode: LeadFieldSourceMode
+  options?: unknown
+  defaultValue?: unknown
+  isActive: boolean
+  isRequired: boolean
+  isFilterable: boolean
+  isVisibleOnCard: boolean
+  isSensitive: boolean
+  aiExtractable: boolean
+  order: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type ConversationFieldValue = {
+  id: string
+  conversationId: string
+  fieldId: string
+  value?: unknown
+  displayValue?: string | null
+  source: LeadFieldValueSource
+  confidence?: number | null
+  evidence?: string | null
+  updatedByUserId?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type ConversationFieldEntry = {
+  field: LeadFieldDefinition
+  value: ConversationFieldValue | null
+}
+
+export type LeadFieldPayload = {
+  key: string
+  label: string
+  description?: string | null
+  type: LeadFieldType
+  sourceMode?: LeadFieldSourceMode
+  options?: unknown
+  defaultValue?: unknown
+  isActive?: boolean
+  isRequired?: boolean
+  isFilterable?: boolean
+  isVisibleOnCard?: boolean
+  isSensitive?: boolean
+  aiExtractable?: boolean
+  order?: number
+}
+
+export async function getLeadFields(): Promise<LeadFieldDefinition[]> {
+  const res = await apiFetch(`${API_BASE_URL}/lead-fields`, {
+    cache: 'no-store'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao buscar campos do lead')
+  }
+
+  return res.json()
+}
+
+export async function createLeadField(
+  payload: LeadFieldPayload
+): Promise<LeadFieldDefinition> {
+  const res = await apiFetch(`${API_BASE_URL}/lead-fields`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao criar campo do lead')
+  }
+
+  return res.json()
+}
+
+export async function updateLeadField(
+  fieldId: string,
+  payload: Partial<LeadFieldPayload>
+): Promise<LeadFieldDefinition> {
+  const res = await apiFetch(`${API_BASE_URL}/lead-fields/${fieldId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao atualizar campo do lead')
+  }
+
+  return res.json()
+}
+
+export async function deleteLeadField(fieldId: string) {
+  const res = await apiFetch(`${API_BASE_URL}/lead-fields/${fieldId}`, {
+    method: 'DELETE'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao remover campo do lead')
+  }
+
+  return res.json()
+}
+
+export async function getConversationFieldValues(
+  conversationId: string
+): Promise<ConversationFieldEntry[]> {
+  const res = await apiFetch(
+    `${API_BASE_URL}/conversations/${conversationId}/field-values`,
+    { cache: 'no-store' }
+  )
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao buscar ficha do lead')
+  }
+
+  return res.json()
+}
+
+export async function updateConversationFieldValue(
+  conversationId: string,
+  fieldId: string,
+  payload: {
+    value?: unknown
+    displayValue?: string | null
+    source?: LeadFieldValueSource
+  }
+): Promise<ConversationFieldValue> {
+  const res = await apiFetch(
+    `${API_BASE_URL}/conversations/${conversationId}/field-values/${fieldId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    }
+  )
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao atualizar ficha do lead')
+  }
+
+  return res.json()
+}
+
+export type LeadTag = {
+  id: string
+  tenantId: string
+  name: string
+  slug: string
+  color?: string | null
+  description?: string | null
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type ConversationTag = {
+  id: string
+  conversationId: string
+  tagId: string
+  source: LeadFieldValueSource
+  addedByUserId?: string | null
+  createdAt: string
+  tag: LeadTag
+}
+
+export type LeadTagPayload = {
+  name: string
+  slug?: string | null
+  color?: string | null
+  description?: string | null
+  isActive?: boolean
+}
+
+export async function getLeadTags(): Promise<LeadTag[]> {
+  const res = await apiFetch(`${API_BASE_URL}/lead-tags`, {
+    cache: 'no-store'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao buscar etiquetas')
+  }
+
+  return res.json()
+}
+
+export async function createLeadTag(payload: LeadTagPayload): Promise<LeadTag> {
+  const res = await apiFetch(`${API_BASE_URL}/lead-tags`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao criar etiqueta')
+  }
+
+  return res.json()
+}
+
+export async function updateLeadTag(
+  tagId: string,
+  payload: Partial<LeadTagPayload>
+): Promise<LeadTag> {
+  const res = await apiFetch(`${API_BASE_URL}/lead-tags/${tagId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao atualizar etiqueta')
+  }
+
+  return res.json()
+}
+
+export async function deleteLeadTag(tagId: string) {
+  const res = await apiFetch(`${API_BASE_URL}/lead-tags/${tagId}`, {
+    method: 'DELETE'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao remover etiqueta')
+  }
+
+  return res.json()
+}
+
+export async function getConversationTags(
+  conversationId: string
+): Promise<ConversationTag[]> {
+  const res = await apiFetch(`${API_BASE_URL}/conversations/${conversationId}/tags`, {
+    cache: 'no-store'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao buscar etiquetas da conversa')
+  }
+
+  return res.json()
+}
+
+export async function applyConversationTag(
+  conversationId: string,
+  tagId: string
+): Promise<ConversationTag> {
+  const res = await apiFetch(
+    `${API_BASE_URL}/conversations/${conversationId}/tags/${tagId}`,
+    {
+      method: 'POST'
+    }
+  )
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao aplicar etiqueta')
+  }
+
+  return res.json()
+}
+
+export async function removeConversationTag(conversationId: string, tagId: string) {
+  const res = await apiFetch(
+    `${API_BASE_URL}/conversations/${conversationId}/tags/${tagId}`,
+    {
+      method: 'DELETE'
+    }
+  )
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao remover etiqueta')
+  }
+
+  return res.json()
+}

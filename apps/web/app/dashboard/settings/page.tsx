@@ -18,16 +18,10 @@ type CurrentUser = {
 function managerItems() {
   return [
     {
-      title: 'Equipe',
-      description: 'Monitorar atendentes, carga operacional e redistribuição.'
-    },
-    {
       title: 'Distribuição',
-      description: 'Preparar rotação, fila, regras e monitoramento operacional.'
-    },
-    {
-      title: 'Monitoramento',
-      description: 'Visão consolidada da equipe e da operação em andamento.'
+      description: 'Configurar fila, rotação e regras da equipe.',
+      href: '/dashboard/settings/distribution',
+      status: 'Abrir distribuição'
     }
   ]
 }
@@ -36,27 +30,27 @@ function adminItems() {
   return [
     {
       title: 'Usuários',
-      description: 'Cadastrar managers e atendentes da operação.'
-    },
-    {
-      title: 'Números',
-      description: 'Gerenciar linhas, perfis, status e vínculo com managers.'
+      description: 'Cadastrar managers e atendentes da operação.',
+      href: '/dashboard/settings/users',
+      status: 'Abrir gestão'
     },
     {
       title: 'Campanhas',
-      description: 'Criar e configurar campanhas, gatilhos e sequência inicial.'
+      description: 'Criar campanhas, gatilhos e sequência inicial.',
+      href: '/dashboard/campaigns',
+      status: 'Abrir campanhas'
     },
     {
-      title: 'Templates',
-      description: 'Administrar mensagens de utilidade, marketing e autenticação.'
+      title: 'Distribuição',
+      description: 'Configurar fila, rotação e regras de atendimento.',
+      href: '/dashboard/settings/distribution?campaignId=SEED',
+      status: 'Abrir distribuição'
     },
     {
-      title: 'Broadcasts',
-      description: 'Preparar disparos futuros com base em template ou mensagem.'
-    },
-    {
-      title: 'IA da operação',
-      description: 'Controlar prompt base, handoff e comportamento da IA por tenant.'
+      title: 'Campos do Lead',
+      description: 'Configurar a ficha dinâmica dos leads da operação.',
+      href: '/dashboard/settings/lead-fields',
+      status: 'Abrir campos'
     }
   ]
 }
@@ -136,88 +130,23 @@ export default function DashboardSettingsPage() {
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {items.map((item) => {
-            if (item.title === 'Distribuição') {
-              return (
-                <div
-                  key={item.title}
-                  className="rounded-2xl border border-neutral-800 bg-[#111b21] p-5"
-                >
-                  <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-                  <p className="mt-2 text-sm text-neutral-400">{item.description}</p>
-                  <div className="mt-4 text-xs text-emerald-300">
-                    Configurar agora
-                  </div>
-                </div>
-              )
-            }
-
-            if (item.title === 'Campanhas') {
-              return (
-                <div
-                  key={item.title}
-                  className="rounded-2xl border border-neutral-800 bg-[#111b21] p-5"
-                >
-                  <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-                  <p className="mt-2 text-sm text-neutral-400">{item.description}</p>
-                  <div className="mt-4 text-xs text-emerald-300">
-                    Configurar agora
-                  </div>
-                </div>
-              )
-            }
-
-            return (
-              <div
-                key={item.title}
-                className="rounded-2xl border border-neutral-800 bg-[#111b21] p-5"
-              >
-                <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-                <p className="mt-2 text-sm text-neutral-400">{item.description}</p>
-                <div className="mt-4 text-xs text-emerald-300">
-                  Base visual preparada
-                </div>
-              </div>
-            )
-          })}
-        </div>
-
-        <div className="mt-6 flex flex-wrap gap-3">
-          {currentUser.role === 'admin' && (
-            <>
-              <a
-                href="/dashboard/settings/users"
-                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700"
-              >
-                Abrir gestão de usuários
-              </a>
-
-              <a
-                href="/dashboard/campaigns"
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-              >
-                Abrir campanhas
-              </a>
-
-              <a
-                href="/dashboard/settings/distribution?campaignId=SEED"
-                className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-800"
-              >
-                Abrir distribuição
-              </a>
-            </>
-          )}
-
-          {currentUser.role === 'manager' && (
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {items.map((item) => (
             <a
-              href="/dashboard/settings/distribution"
-              className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-800"
+              key={item.title}
+              href={item.href}
+              className="rounded-2xl border border-neutral-800 bg-[#111b21] p-5 transition hover:bg-[#202c33]"
             >
-              Abrir distribuição
+              <h3 className="text-lg font-semibold text-white">{item.title}</h3>
+              <p className="mt-2 text-sm text-neutral-400">{item.description}</p>
+              <div className="mt-4 text-xs text-emerald-300">
+                {item.status}
+              </div>
             </a>
-          )}
+          ))}
         </div>
+
+        
       </div>
     </AppShell>
   )

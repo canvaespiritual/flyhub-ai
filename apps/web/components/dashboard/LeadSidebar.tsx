@@ -1,7 +1,14 @@
+import { useEffect, useMemo, useState } from 'react'
 import type { Lead } from '@flyhub/shared'
+import {
+  getConversationFieldValues,
+  updateConversationFieldValue,
+  type ConversationFieldEntry
+} from '@/lib/api'
 
 type Props = {
   lead: Lead
+  conversationId: string
 }
 
 function normalizePhoneForWhatsApp(phone?: string) {
@@ -9,7 +16,6 @@ function normalizePhoneForWhatsApp(phone?: string) {
 
   let digits = phone.replace(/\D/g, '')
 
-  // fallback pragmático para celular BR salvo sem o 9
   if (digits.startsWith('55') && digits.length === 12) {
     digits = digits.slice(0, 4) + '9' + digits.slice(4)
   }
@@ -22,7 +28,6 @@ function formatPhone(phone?: string) {
 
   const digits = normalizePhoneForWhatsApp(phone)
 
-  // Brasil: 55 + DDD + 9 + número
   if (digits.startsWith('55') && digits.length === 13) {
     const country = digits.slice(0, 2)
     const ddd = digits.slice(2, 4)
@@ -42,10 +47,107 @@ function formatPhone(phone?: string) {
   return phone
 }
 
-export function LeadSidebar({ lead }: Props) {
+function formatFieldValue(entry: ConversationFieldEntry) {
+  if (entry.value?.displayValue) return entry.value.displayValue
+
+  const rawValue = entry.value?.value
+
+  if (rawValue === null || rawValue === undefined) return '—'
+  if (typeof rawValue === 'string') return rawValue
+  if (typeof rawValue === 'number') return String(rawValue)
+  if (typeof rawValue === 'boolean') return rawValue ? 'Sim' : 'Não'
+
+  try {
+    return JSON.stringify(rawValue)
+  } catch {
+    return String(rawValue)
+  }
+}
+
+function getInputType(type: ConversationFieldEntry['field']['type']) {
+  if (type === 'NUMBER' || type === 'MONEY') return 'number'
+  if (type === 'DATE') return 'date'
+  if (type === 'EMAIL') return 'email'
+  if (type === 'PHONE') return 'tel'
+  if (type === 'URL') return 'url'
+  return 'text'
+}
+
+function canEditField(entry: ConversationFieldEntry) {
+  return entry.field.sourceMode !== 'SYSTEM'
+}
+
+export function LeadSidebar({ lead, conversationId }: Props) {
+  const [entries, setEntries] = useState<ConversationFieldEntry[]>([])
+  const [loadingFields, setLoadingFields] = useState(false)
+  const [savingFieldId, setSavingFieldId] = useState<string | null>(null)
+  const [editingFieldId, setEditingFieldId] = useState<string | null>(null)
+  const [draftValue, setDraftValue] = useState('')
+
   const waPhone = normalizePhoneForWhatsApp(lead.phone)
   const waLink = waPhone ? `https://wa.me/${waPhone}` : null
   const formattedPhone = formatPhone(lead.phone)
+
+  const visibleEntries = useMemo(() => {
+    return entries.filter((entry) => entry.field.isActive && entry.field.isVisibleOnCard)
+  }, [entries])
+
+  async function loadFields() {
+    setLoadingFields(true)
+
+    try {
+      const data = await getConversationFieldValues(conversationId)
+      setEntries(data)
+    } catch (error) {
+      console.error('Erro ao carregar ficha do lead:', error)
+    } finally {
+      setLoadingFields(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadFields()
+  }, [conversationId])
+
+  function startEdit(entry: ConversationFieldEntry) {
+    setEditingFieldId(entry.field.id)
+    setDraftValue(formatFieldValue(entry) === '—' ? '' : formatFieldValue(entry))
+  }
+
+  function cancelEdit() {
+    setEditingFieldId(null)
+    setDraftValue('')
+  }
+
+  async function saveField(entry: ConversationFieldEntry) {
+    try {
+      setSavingFieldId(entry.field.id)
+
+      let value: unknown = draftValue
+
+      if (entry.field.type === 'NUMBER' || entry.field.type === 'MONEY') {
+        value = draftValue.trim() ? Number(draftValue) : null
+      }
+
+      if (entry.field.type === 'BOOLEAN') {
+        value = draftValue === 'true'
+      }
+
+      await updateConversationFieldValue(conversationId, entry.field.id, {
+        value,
+        displayValue: draftValue.trim() || null,
+        source: 'HUMAN'
+      })
+
+      cancelEdit()
+      await loadFields()
+    } catch (error) {
+      console.error('Erro ao salvar campo:', error)
+      alert(error instanceof Error ? error.message : 'Erro ao salvar campo')
+    } finally {
+      setSavingFieldId(null)
+    }
+  }
 
   return (
     <aside className="h-full overflow-y-auto border-l border-neutral-800 bg-[#111b21] p-4 text-white">
@@ -77,6 +179,107 @@ export function LeadSidebar({ lead }: Props) {
           <span className="text-neutral-400">Email:</span> {lead.email || '—'}
         </p>
       </div>
+
+      <div className="my-4 border-t border-neutral-800" />
+
+      <div className="mb-3 flex items-center justify-between">
+        <h4 className="text-sm font-semibold">Ficha do Lead</h4>
+
+        <button
+          type="button"
+          onClick={loadFields}
+          className="text-xs text-[#53bdeb] hover:underline"
+        >
+          Atualizar
+        </button>
+      </div>
+
+      {loadingFields ? (
+        <p className="text-sm text-neutral-400">Carregando ficha...</p>
+      ) : visibleEntries.length === 0 ? (
+        <p className="text-sm text-neutral-500">
+          Nenhum campo configurado para este card.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {visibleEntries.map((entry) => {
+            const isEditing = editingFieldId === entry.field.id
+            const isSaving = savingFieldId === entry.field.id
+            const editable = canEditField(entry)
+
+            return (
+              <div
+                key={entry.field.id}
+                className="rounded-xl border border-neutral-800 bg-[#0b141a] p-3"
+              >
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="text-xs text-neutral-400">{entry.field.label}</span>
+
+                  {editable && !isEditing && (
+                    <button
+                      type="button"
+                      onClick={() => startEdit(entry)}
+                      className="text-[11px] text-[#53bdeb] hover:underline"
+                    >
+                      editar
+                    </button>
+                  )}
+                </div>
+
+                {isEditing ? (
+                  <div className="space-y-2">
+                    {entry.field.type === 'BOOLEAN' ? (
+                      <select
+                        value={draftValue}
+                        onChange={(e) => setDraftValue(e.target.value)}
+                        className="w-full rounded-lg bg-[#202c33] px-2 py-2 text-sm outline-none"
+                      >
+                        <option value="">—</option>
+                        <option value="true">Sim</option>
+                        <option value="false">Não</option>
+                      </select>
+                    ) : (
+                      <input
+                        type={getInputType(entry.field.type)}
+                        value={draftValue}
+                        onChange={(e) => setDraftValue(e.target.value)}
+                        className="w-full rounded-lg bg-[#202c33] px-2 py-2 text-sm outline-none"
+                      />
+                    )}
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={isSaving}
+                        onClick={() => saveField(entry)}
+                        className="rounded-md bg-[#25d366] px-3 py-1 text-xs font-semibold text-black disabled:opacity-60"
+                      >
+                        {isSaving ? 'Salvando...' : 'Salvar'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        className="rounded-md bg-[#202c33] px-3 py-1 text-xs"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="break-words text-sm">{formatFieldValue(entry)}</p>
+                )}
+
+                {entry.value?.source && (
+                  <p className="mt-1 text-[11px] text-neutral-500">
+                    Fonte: {entry.value.source}
+                  </p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </aside>
   )
 }

@@ -901,7 +901,11 @@ async function handleTogglePush() {
         onLoadOlderMessages={loadOlderMessages}
       />
 
-      <div className="hidden h-full xl:block">{lead ? <LeadSidebar lead={lead} /> : null}</div>
+      <div className="hidden h-full xl:block">
+  {lead && selectedConversation ? (
+    <LeadSidebar lead={lead} conversationId={selectedConversation.id} />
+  ) : null}
+</div>
     </div>
   )
 

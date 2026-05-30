@@ -31,6 +31,10 @@ model Tenant {
   aiAgents           AiAgent[]
   pushSubscriptions PushSubscription[]
   unmatchedLeadDistributionRules UnmatchedLeadDistributionRule[]
+  leadFieldDefinitions LeadFieldDefinition[]
+  leadTags             LeadTag[]
+  leadExtractorConfig  LeadExtractorConfig?
+  leadExtractionRuns   LeadExtractionRun[]
 }
 
 model PhoneNumber {
@@ -102,6 +106,9 @@ model User {
   // 🔐 SESSÕES
   sessions Session[]
   pushSubscriptions PushSubscription[]
+  updatedConversationFieldValues ConversationFieldValue[]    @relation("ConversationFieldValueUpdatedByUser")
+  changedConversationFieldLogs   ConversationFieldAuditLog[] @relation("ConversationFieldAuditChangedByUser")
+  addedConversationTags          ConversationTag[]           @relation("ConversationTagAddedByUser")
 
   @@index([tenantId, role, isActive])
   @@index([tenantId, isActive])
@@ -394,6 +401,10 @@ model Conversation {
 
   messages    Message[]
   assignments Assignment[]
+  fieldValues    ConversationFieldValue[]
+  fieldAuditLogs ConversationFieldAuditLog[]
+  tags           ConversationTag[]
+  extractionRuns LeadExtractionRun[]
 
   @@index([tenantId, updatedAt])
   @@index([tenantId, status, updatedAt])
@@ -751,6 +762,40 @@ enum BroadcastStatus {
   CANCELLED
 }
 
+enum LeadFieldType {
+  TEXT
+  NUMBER
+  MONEY
+  BOOLEAN
+  DATE
+  SELECT
+  MULTI_SELECT
+  PHONE
+  EMAIL
+  URL
+  JSON
+}
+
+enum LeadFieldSourceMode {
+  SYSTEM
+  AI
+  HUMAN
+  AI_HUMAN
+  SYSTEM_HUMAN
+}
+
+enum LeadFieldValueSource {
+  SYSTEM
+  AI
+  HUMAN
+}
+
+enum LeadExtractionStatus {
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
 enum AiResourceType {
   LINK
   AUDIO
@@ -928,4 +973,162 @@ model ConversationAiState {
 
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   agent          AiAgent      @relation(fields: [agentId], references: [id], onDelete: Cascade)
+}
+
+model LeadFieldDefinition {
+  id              String              @id @default(cuid())
+  tenantId        String
+  key             String
+  label           String
+  description     String?
+  type            LeadFieldType
+  sourceMode      LeadFieldSourceMode @default(HUMAN)
+
+  options         Json?
+  defaultValue    Json?
+
+  isActive        Boolean @default(true)
+  isRequired      Boolean @default(false)
+  isFilterable    Boolean @default(true)
+  isVisibleOnCard Boolean @default(true)
+  isSensitive     Boolean @default(false)
+  aiExtractable   Boolean @default(false)
+
+  order           Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  values          ConversationFieldValue[]
+  auditLogs       ConversationFieldAuditLog[]
+
+  @@unique([tenantId, key])
+  @@index([tenantId, isActive, order])
+  @@index([tenantId, isFilterable])
+}
+
+model ConversationFieldValue {
+  id              String               @id @default(cuid())
+  conversationId  String
+  fieldId         String
+
+  value           Json?
+  displayValue    String?
+  source          LeadFieldValueSource
+  confidence      Float?
+  evidence        String?
+
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  field           LeadFieldDefinition @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  updatedByUser   User? @relation("ConversationFieldValueUpdatedByUser", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([conversationId, fieldId])
+  @@index([conversationId])
+  @@index([fieldId])
+  @@index([updatedByUserId])
+  @@index([source])
+}
+
+model ConversationFieldAuditLog {
+  id              String               @id @default(cuid())
+  conversationId  String
+  fieldId         String
+
+  oldValue        Json?
+  newValue        Json?
+  source          LeadFieldValueSource
+  changedByUserId String?
+  evidence        String?
+
+  createdAt       DateTime @default(now())
+
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  field           LeadFieldDefinition @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  changedByUser   User? @relation("ConversationFieldAuditChangedByUser", fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([fieldId, createdAt])
+  @@index([changedByUserId])
+  @@index([source])
+}
+
+model LeadTag {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  slug        String
+  color       String?
+  description String?
+  isActive    Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversations ConversationTag[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, isActive])
+}
+
+model ConversationTag {
+  id              String               @id @default(cuid())
+  conversationId  String
+  tagId           String
+  source          LeadFieldValueSource @default(HUMAN)
+  addedByUserId   String?
+  createdAt       DateTime @default(now())
+
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  tag             LeadTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  addedByUser     User? @relation("ConversationTagAddedByUser", fields: [addedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([conversationId, tagId])
+  @@index([conversationId])
+  @@index([tagId])
+  @@index([addedByUserId])
+  @@index([source])
+}
+
+model LeadExtractorConfig {
+  id            String   @id @default(cuid())
+  tenantId      String   @unique
+
+  isEnabled     Boolean  @default(false)
+  model         String   @default("gpt-5-chat-latest")
+  temperature   Float    @default(0)
+  maxMessages   Int      @default(20)
+  customPrompt  String?
+
+  runOnInbound  Boolean  @default(true)
+  runOnOutbound Boolean  @default(false)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant        Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model LeadExtractionRun {
+  id              String               @id @default(cuid())
+  tenantId         String
+  conversationId   String
+  status           LeadExtractionStatus
+
+  inputMessageIds  Json?
+  extractedData    Json?
+  errorMessage     String?
+
+  createdAt        DateTime @default(now())
+
+  tenant           Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([status, createdAt])
 }
