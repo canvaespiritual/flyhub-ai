@@ -20,6 +20,7 @@ import { masterAdminRoutes } from './routes/master-admins.js'
 import { pushSubscriptionRoutes } from './routes/push-subscriptions.js'
 import { leadFieldRoutes } from './routes/lead-fields.js'
 import { leadTagRoutes } from './routes/lead-tags.js'
+import { leadExtractorRoutes } from './routes/lead-extractor.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -83,6 +84,7 @@ export async function buildApp() {
   await app.register(campaignDistributionRoutes, { prefix: '/api' })
   await app.register(leadFieldRoutes, { prefix: '/api' })
   await app.register(leadTagRoutes, { prefix: '/api' })
+  await app.register(leadExtractorRoutes, { prefix: '/api' })
   await app.register(presenceRoutes, { prefix: '/api' })
   await app.register(whatsappWebhookRoutes, { prefix: '/api' })
 

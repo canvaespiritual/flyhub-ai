@@ -3,6 +3,7 @@ import type { Lead } from '@flyhub/shared'
 import {
   getConversationFieldValues,
   updateConversationFieldValue,
+  extractLeadFromConversation,
   type ConversationFieldEntry
 } from '@/lib/api'
 
@@ -106,6 +107,7 @@ export function LeadSidebar({ lead, conversationId }: Props) {
   const [savingFieldId, setSavingFieldId] = useState<string | null>(null)
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null)
   const [draftValue, setDraftValue] = useState('')
+  const [extracting, setExtracting] = useState(false)
 
   const waPhone = normalizePhoneForWhatsApp(lead.phone)
   const waLink = waPhone ? `https://wa.me/${waPhone}` : null
@@ -124,6 +126,25 @@ export function LeadSidebar({ lead, conversationId }: Props) {
   } catch (error) {
     console.error(error)
     alert('Erro ao copiar resumo')
+  }
+}
+
+async function runExtractor() {
+  try {
+    setExtracting(true)
+
+    const result = await extractLeadFromConversation(conversationId)
+
+    console.log('[LEAD_EXTRACTOR_RESULT]', result)
+
+    await loadFields()
+
+    alert('Extração concluída ✓')
+  } catch (error) {
+    console.error(error)
+    alert(error instanceof Error ? error.message : 'Erro ao rodar extrator')
+  } finally {
+    setExtracting(false)
   }
 }
 
@@ -236,7 +257,15 @@ export function LeadSidebar({ lead, conversationId }: Props) {
     >
       📋
     </button>
-
+          <button
+  type="button"
+  onClick={runExtractor}
+  disabled={extracting}
+  title="Rodar extrator de dados"
+  className="text-sm hover:opacity-80 disabled:opacity-40"
+>
+  {extracting ? '…' : '✨'}
+</button>
     <button
       type="button"
       onClick={loadFields}

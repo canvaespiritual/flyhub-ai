@@ -1298,3 +1298,18 @@ export async function removeConversationTag(conversationId: string, tagId: strin
 
   return res.json()
 }
+
+export async function extractLeadFromConversation(conversationId: string) {
+  const res = await apiFetch(
+    `${API_BASE_URL}/conversations/${conversationId}/extract-lead`,
+    {
+      method: 'POST'
+    }
+  )
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao rodar extrator do lead')
+  }
+
+  return res.json()
+}
