@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma.js'
 import { getSessionFromRequest } from '../lib/auth.js'
 import { runLeadExtractorForConversation } from '../lib/lead-extractor.js'
+import { syncSystemLeadFields } from '../lib/system-lead-fields.js'
 
 const paramsSchema = z.object({
   conversationId: z.string().min(1)
@@ -57,11 +58,19 @@ export async function leadExtractorRoutes(app: FastifyInstance) {
       return reply.status(404).send({ message: 'Conversa não encontrada' })
     }
 
-    const result = await runLeadExtractorForConversation({
-      tenantId: conversation.tenantId,
-      conversationId: conversation.id
-    })
+    const systemResult = await syncSystemLeadFields({
+  tenantId: conversation.tenantId,
+  conversationId: conversation.id
+})
 
-    return result
+const extractorResult = await runLeadExtractorForConversation({
+  tenantId: conversation.tenantId,
+  conversationId: conversation.id
+})
+
+return {
+  system: systemResult,
+  extractor: extractorResult
+}
   })
 }

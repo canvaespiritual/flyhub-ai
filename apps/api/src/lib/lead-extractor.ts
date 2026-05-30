@@ -153,9 +153,17 @@ Regras:
 5. Se o lead corrigir uma informação anterior, use a informação mais recente.
 6. Para BOOLEAN, use true ou false.
 7. Para MONEY e NUMBER, use número puro, sem R$.
-8. Para DATE, prefira formato YYYY-MM-DD quando a data completa estiver clara. Se só houver ano aproximado, pode retornar o texto informado.
-9. Para CPF, preserve o número se aparecer.
-10. Responda neste formato exato:
+8. Em renda familiar, interprete respostas brasileiras curtas:
+   - "4" geralmente significa 4000 quando o contexto for renda.
+   - "4 mil" significa 4000.
+   - "minha 4 e da esposa 6" significa renda familiar 10000.
+   - "4+3" significa 7000 quando o contexto for renda.
+   - Se o lead informar renda de duas pessoas, some para renda familiar.
+   - Se houver dúvida real, não extraia.
+9. Para DATE, prefira formato YYYY-MM-DD quando a data completa estiver clara. Se só houver ano aproximado, pode retornar o texto informado.
+10. Para CPF, preserve o número se aparecer, com ou sem pontuação.
+11. Se o campo for CPF, aceite sequências de 11 dígitos ou CPF com pontos e traço.
+12. Retorne somente JSON válido, sem markdown.
 
 {
   "updates": [
@@ -188,7 +196,7 @@ export async function runLeadExtractorForConversation(params: {
       isEnabled: false,
       model: 'gpt-5-chat-latest',
       temperature: 0,
-      maxMessages: 20,
+      maxMessages: 70,
       runOnInbound: true,
       runOnOutbound: false
     }
