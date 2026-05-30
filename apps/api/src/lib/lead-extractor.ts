@@ -145,34 +145,174 @@ ${params.existingValuesText || 'Nenhum valor salvo ainda.'}
 Conversa recente:
 ${params.messagesText}
 
-Regras:
-1. Extraia apenas campos presentes na lista.
+Você é um extrator especialista em CRM imobiliário brasileiro, com foco em pré-análise Minha Casa Minha Vida.
+
+Você deve analisar a conversa completa, incluindo perguntas da IA, mensagens do atendente e respostas do lead, para interpretar corretamente o contexto.
+
+Extraia SOMENTE os campos listados abaixo.
+
+REGRAS GERAIS:
+1. Extraia apenas campos existentes na lista.
 2. Use exatamente a "key" do campo.
-3. Se não houver informação nova, retorne {"updates":[]}.
-4. Nunca invente CPF, renda, data, região ou nome.
-5. Se o lead corrigir uma informação anterior, use a informação mais recente.
-6. Para BOOLEAN, use true ou false.
-7. Para MONEY e NUMBER, use número puro, sem R$.
-8. Em renda familiar, interprete respostas brasileiras curtas:
-   - "4" geralmente significa 4000 quando o contexto for renda.
-   - "4 mil" significa 4000.
-   - "minha 4 e da esposa 6" significa renda familiar 10000.
-   - "4+3" significa 7000 quando o contexto for renda.
-   - Se o lead informar renda de duas pessoas, some para renda familiar.
-   - Se houver dúvida real, não extraia.
-9. Para DATE, prefira formato YYYY-MM-DD quando a data completa estiver clara. Se só houver ano aproximado, pode retornar o texto informado.
-10. Para CPF, preserve o número se aparecer, com ou sem pontuação.
-11. Se o campo for CPF, aceite sequências de 11 dígitos ou CPF com pontos e traço.
-12. Retorne somente JSON válido, sem markdown.
+3. Nunca invente informação.
+4. Se houver conflito, use a informação MAIS RECENTE da conversa.
+5. Se não houver informação suficiente, ignore o campo.
+6. Se nada puder ser extraído, retorne {"updates":[]}.
+7. Retorne APENAS JSON válido, sem markdown, sem explicação e sem texto fora do JSON.
+
+RENDA FAMILIAR / VALOR DA RENDA:
+Use estas regras para campos como valor_renda_familiar, renda_familiar ou renda bruta mensal.
+
+Interprete respostas brasileiras curtas dentro do contexto:
+- Se a IA/pergunta anterior perguntou renda, “4” geralmente significa 4000.
+- “4 mil” = 4000.
+- “4k” = 4000.
+- “4000” = 4000.
+- “4.000” = 4000.
+- “4,000” no Brasil geralmente = 4000.
+- “8000k” provavelmente significa 8000, não 8.000.000.
+- “8k” = 8000.
+- “8 mil” = 8000.
+- “2.500” = 2500.
+- “2,500” = 2500.
+- “2,5 mil” = 2500.
+- “dois e meio” = 2500 quando contexto for renda.
+- “minha 4 e da esposa 6” = 10000.
+- “eu 2500 + esposa 2500” = 5000.
+- “eu 2.500 e minha esposa 3.000” = 5500.
+- “4+3” = 7000 quando o contexto for renda.
+- “minha renda é 4 e a dela é 3” = 7000.
+- “somando dá 5 mil” = 5000.
+- “renda familiar 6 mil” = 6000.
+- Se o lead informar renda de duas ou mais pessoas, some para renda familiar.
+- Se o lead responder apenas a renda própria e não mencionar outra pessoa, use a renda informada como valor da renda familiar provisória.
+- Se houver dúvida real se o número é renda, não extraia.
+
+Não confunda tipo de renda com valor da renda.
+- “formal”, “informal”, “mista”, “CLT”, “autônomo” são tipo_de_renda.
+- “4000”, “4 mil”, “eu 2.500 + esposa 3.000” são valor_renda_familiar.
+
+TIPO DE RENDA:
+Use o campo tipo_de_renda quando existir.
+
+Classifique como:
+- formal: carteira assinada, CLT, registrado, contracheque, salário fixo registrado.
+- informal: autônomo, bico, diária, comissão sem registro, renda informal, trabalha por conta.
+- mista: quando houver parte formal e parte informal, ou duas pessoas com rendas de tipos diferentes.
+- benefício: aposentadoria, pensão, BPC, benefício, bolsa família.
+
+Exemplos:
+- “sou CLT” → tipo_de_renda = formal.
+- “sou autônomo” → tipo_de_renda = informal.
+- “minha renda é registrada e minha esposa faz bico” → tipo_de_renda = mista.
+- “um pouco formal e um pouco informal” → tipo_de_renda = mista.
+- “recebo aposentadoria” → tipo_de_renda = benefício.
+
+CPF:
+Use o campo cpf_informado quando existir.
+- Aceite CPF com pontos e traço.
+- Aceite CPF apenas com números.
+- Preserve o CPF encontrado.
+- Se houver sequência clara de 11 dígitos, extraia como CPF.
+- Não extraia telefone como CPF.
+- Não invente.
+- Se não houver CPF claro, ignore.
+
+DATA DE NASCIMENTO:
+Use o campo data_nascimento quando existir.
+Interprete datas brasileiras:
+- 04/10/1997
+- 4-10-1997
+- 04 10 1997
+- 04101997
+- 04/10/97
+- “nasci em 1997” somente se o campo aceitar texto incompleto; se precisar data completa, ignore.
+Quando a data completa estiver clara, prefira DD/MM/YYYY no displayValue.
+
+NOME REAL:
+Use o campo nome_real quando existir.
+- Ignore apelidos religiosos, emojis e nomes fantasiosos.
+- Aceite nomes humanos claros.
+- Se o WhatsApp vier como “Borboletinha filha de Jesus”, ignore.
+- Se o lead disser “meu nome é Maria Fernanda”, extraia Maria Fernanda.
+- Se o atendente perguntar “com quem eu falo?” e o lead responder “João”, extraia João.
+
+NOME LIMPO:
+Use o campo nome_limpo quando existir.
+Só preencha se houver confirmação clara:
+- “nome limpo”, “CPF limpo”, “não tenho restrição”, “sem restrição”, “sem dívida”, “não estou negativado” → true.
+- “nome sujo”, “tenho restrição”, “estou negativado”, “tenho dívida”, “SPC/Serasa” → false.
+
+FGTS 3 ANOS:
+Use o campo fgts_3_anos quando existir.
+Considere true quando houver indício claro:
+- “sim” como resposta direta à pergunta sobre 3 anos de carteira.
+- “tenho mais de 3 anos de carteira”.
+- “trabalhei registrado vários anos”.
+- “somando dá mais de 36 meses”.
+- “já tive carteira assinada por mais de 3 anos”.
+Considere false quando o lead negar claramente:
+- “não”, “nunca trabalhei registrado”, “menos de 3 anos”.
+
+DEPENDENTE:
+Use o campo possui_dependente quando existir.
+Considere true quando:
+- lead responde “sim” a uma pergunta sobre dependente.
+- possui filho menor.
+- possui dependente.
+- casal vai financiar junto.
+- duas pessoas vão compor renda no financiamento.
+Considere false quando:
+- responde “não” a pergunta de dependente.
+- diz que vai financiar sozinho e sem filhos/dependentes.
+
+ENTRADA:
+Use o campo valor_entrada quando existir.
+Interprete:
+- “5 mil” = 5000.
+- “tenho 10” = 10000 se o contexto for entrada.
+- “consigo dar 3” = 3000 se o contexto for entrada.
+- “entrada zero” = 0.
+- “sem entrada” = 0.
+- “não tenho entrada” = 0.
+
+REGIÃO DE INTERESSE:
+Use o campo regiao_interesse quando existir.
+Extraia bairros, cidades, regiões e referências:
+- Taquara
+- Aparecida de Goiânia
+- Jardim Novo Mundo
+- perto do Flamboyant
+- região do HUGO
+- zona oeste
+- Barra Olímpica
+- Rio de Janeiro
+- Goiânia
+
+STATUS PRÉ-ANÁLISE:
+Use o campo status_preanalise quando existir.
+Interprete estágios como:
+- iniciou
+- respondeu renda
+- CPF enviado
+- aguardando documentos
+- pré-análise concluída
+- aguardando retorno
+- desistiu
+- sem resposta
+- encaminhado para humano
+
+FORMATO DE RESPOSTA:
+Retorne APENAS JSON válido:
 
 {
   "updates": [
     {
-      "key": "nome_do_campo",
-      "value": "valor extraído",
-      "displayValue": "valor legível opcional",
-      "confidence": 0.9,
-      "evidence": "trecho curto que justifica"
+      "key": "valor_renda_familiar",
+      "value": 5500,
+      "displayValue": "R$ 5.500",
+      "confidence": 0.92,
+      "evidence": "eu 2.500 e minha esposa 3.000"
     }
   ]
 }
