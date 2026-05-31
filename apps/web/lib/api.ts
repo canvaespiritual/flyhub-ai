@@ -1313,3 +1313,31 @@ export async function extractLeadFromConversation(conversationId: string) {
 
   return res.json()
 }
+
+export type OperationSummary = {
+  totalLeads: number
+  byAgent: Array<{ name: string; total: number }>
+  byCampaign: Array<{ name: string; total: number }>
+  fields: Array<{
+    fieldId: string
+    key: string
+    label: string
+    type: string
+    filled: number
+    empty: number
+    values: Array<{ label: string; total: number }>
+    byAgent: Array<{ name: string; total: number }>
+  }>
+}
+
+export async function getOperationSummary(): Promise<OperationSummary> {
+  const res = await apiFetch(`${API_BASE_URL}/reports/operation-summary`, {
+    cache: 'no-store'
+  })
+
+  if (!res.ok) {
+    throw await parseApiError(res, 'Erro ao carregar relatório da operação')
+  }
+
+  return res.json()
+}

@@ -42,6 +42,12 @@ const dashboardItems: SidebarItem[] = [
     href: '/dashboard/settings',
     roles: ['manager', 'admin'],
     icon: '⚙️'
+  },
+  {
+    label: 'Relatórios',
+    href: '/dashboard/reports',
+    roles: ['manager', 'admin'],
+    icon: '📊'
   }
 ]
 
