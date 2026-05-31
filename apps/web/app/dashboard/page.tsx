@@ -293,7 +293,7 @@ export default function DashboardPage() {
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false)
   const [lead, setLead] = useState<Lead | null>(null)
   const [leadsMap, setLeadsMap] = useState<Record<string, Lead>>({})
-  const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
+  const [mobileView, setMobileView] = useState<'list' | 'chat' | 'lead'>('list')
   const [changingMode, setChangingMode] = useState(false)
   const [assigningConversationId, setAssigningConversationId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -780,9 +780,18 @@ console.log('[REALTIME_EVENT]', {
     )
   }
 
-  function handleBack() {
-    setMobileView('list')
-  }
+ function handleBack() {
+  setMobileView('list')
+}
+
+function handleOpenLead() {
+  setMobileView('lead')
+}
+
+function handleBackToChat() {
+  setMobileView('chat')
+}
+
 async function handleTogglePush() {
   try {
     setPushLoading(true)
@@ -1061,6 +1070,7 @@ async function handleTogglePush() {
                 updatingPresence={updatingPresence}
                 onUpdatePresence={handleUpdatePresence}
                 onBack={handleBack}
+                onOpenLead={handleOpenLead}
                 onSendMessage={handleSendMessage}
                 onSendMediaMessage={handleSendMediaMessage}
                 onChangeMode={handleChangeMode}
@@ -1073,6 +1083,30 @@ async function handleTogglePush() {
               />
               </div>
             </>
+          )}
+          {mobileView === 'lead' && lead && selectedConversation && (
+            <div className="flex h-full min-h-0 flex-col bg-[#0b141a]">
+              <div className="flex items-center border-b border-neutral-800 bg-[#111b21] px-4 py-3">
+                <button
+                  onClick={handleBackToChat}
+                  className="mr-3 text-white"
+                >
+                  ←
+                </button>
+
+                <h2 className="text-sm font-semibold text-white">
+                  Ficha do lead
+                </h2>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <LeadSidebar
+                  lead={lead}
+                  conversationId={selectedConversation.id}
+                  refreshKey={leadSidebarRefreshKey}
+                />
+              </div>
+            </div>
           )}
         </div>
       </main>

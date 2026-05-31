@@ -27,6 +27,7 @@ type Props = {
   updatingPresence?: boolean
   onUpdatePresence: (status: PresenceStatus) => Promise<void>
   onBack?: () => void
+  onOpenLead?: () => void
   onSendMessage: (payload: SendTextMessagePayload) => Promise<void>
   onSendMediaMessage?: (payload: {
   type: 'audio' | 'image' | 'document' | 'video'
@@ -119,6 +120,7 @@ export function ChatWindow({
   updatingPresence = false,
   onUpdatePresence,
   onBack,
+  onOpenLead,
   onSendMessage,
   onSendMediaMessage,
   onChangeMode,
@@ -315,6 +317,13 @@ function handleTouchEnd(event: React.TouchEvent) {
                     {selectedConversation.phoneNumber.label}
                   </span>
                 )}
+                <button
+                  type="button"
+                  onClick={onOpenLead}
+                  className="rounded-full border border-neutral-700 bg-[#0b141a] px-3 py-1 text-[11px] text-neutral-300 md:hidden"
+                >
+                  Lead
+                </button>
                 <div className="ml-auto flex shrink-0 items-center gap-1 rounded-full border border-neutral-700 bg-[#0b141a] p-0.5 md:hidden">
               <button
                 type="button"
