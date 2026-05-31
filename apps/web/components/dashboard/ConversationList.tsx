@@ -107,6 +107,20 @@ function getSlaInfo(conversation: Conversation) {
   return { level: 'ok' as const, label: `SLA ${formatted}` }
 }
 
+function getModeBadge(conversation: Conversation) {
+  if (conversation.mode === 'ai') {
+    return {
+      label: 'IA',
+      className: 'bg-blue-500/20 text-blue-200'
+    }
+  }
+
+  return {
+    label: 'MAN',
+    className: 'bg-emerald-500/20 text-emerald-200'
+  }
+}
+
 function getConversationRank(
   conversation: Conversation,
   currentUserId: string
@@ -204,6 +218,7 @@ const orderedConversations = useMemo(() => {
           const isAssigning = assigningConversationId === conversation.id
           const isOwnedByCurrentUser = conversation.assignedUser?.id === currentUserId
           const sla = getSlaInfo(conversation)
+          const modeBadge = getModeBadge(conversation)
 
           return (
             <div
@@ -235,9 +250,17 @@ const orderedConversations = useMemo(() => {
         {lead?.name ?? lead?.phone ?? 'Carregando...'}
       </p>
 
-      <span className="text-[11px] text-neutral-500 ml-2 whitespace-nowrap">
+      <div className="ml-2 flex shrink-0 items-center gap-1">
+      <span
+        className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none ${modeBadge.className}`}
+      >
+        {modeBadge.label}
+      </span>
+
+      <span className="text-[11px] text-neutral-500 whitespace-nowrap">
         {formatConversationListDate(conversation.updatedAt)}
       </span>
+</div>
     </div>
 
     {/* Linha 2: Preview + badge */}
