@@ -4,16 +4,23 @@ import { useEffect, useState } from 'react'
 import { getOperationSummary, type OperationSummary } from '@/lib/api'
 
 export default function ReportsPage() {
-  const [data, setData] = useState<OperationSummary | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+    const [data, setData] = useState<OperationSummary | null>(null)
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+    const [dateFrom, setDateFrom] = useState('')
+    const [dateTo, setDateTo] = useState('')
+    const [assignedUserId, setAssignedUserId] = useState('')
 
   async function loadData() {
     setLoading(true)
     setError(null)
 
     try {
-      const summary = await getOperationSummary()
+      const summary = await getOperationSummary({
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+    assignedUserId: assignedUserId || undefined
+    })
       setData(summary)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar relatório')
@@ -54,7 +61,70 @@ export default function ReportsPage() {
             </button>
           </div>
         </div>
+        {data && (
+  <section className="rounded-2xl border border-neutral-800 bg-[#111b21] p-4">
+    <div className="grid gap-3 md:grid-cols-4">
+      <label className="space-y-1 text-sm">
+        <span className="text-neutral-400">Data inicial</span>
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          className="w-full rounded-lg bg-[#202c33] px-3 py-2 outline-none"
+        />
+      </label>
 
+      <label className="space-y-1 text-sm">
+        <span className="text-neutral-400">Data final</span>
+        <input
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          className="w-full rounded-lg bg-[#202c33] px-3 py-2 outline-none"
+        />
+      </label>
+
+      <label className="space-y-1 text-sm">
+        <span className="text-neutral-400">Corretor</span>
+        <select
+          value={assignedUserId}
+          onChange={(e) => setAssignedUserId(e.target.value)}
+          className="w-full rounded-lg bg-[#202c33] px-3 py-2 outline-none"
+        >
+          <option value="">Todos</option>
+          {data.byAgent.map((agent) => (
+            <option key={agent.id ?? agent.name} value={agent.id ?? ''}>
+              {agent.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <div className="flex items-end gap-2">
+        <button
+          type="button"
+          onClick={loadData}
+          className="rounded-lg bg-[#25d366] px-4 py-2 text-sm font-semibold text-black"
+        >
+          Aplicar
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setDateFrom('')
+            setDateTo('')
+            setAssignedUserId('')
+            setTimeout(() => void loadData(), 0)
+          }}
+          className="rounded-lg bg-[#202c33] px-4 py-2 text-sm hover:bg-[#2a3942]"
+        >
+          Limpar
+        </button>
+      </div>
+    </div>
+  </section>
+)}
         {loading && <p className="text-sm text-neutral-400">Carregando...</p>}
 
         {error && (

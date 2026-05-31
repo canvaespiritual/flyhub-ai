@@ -1316,7 +1316,7 @@ export async function extractLeadFromConversation(conversationId: string) {
 
 export type OperationSummary = {
   totalLeads: number
-  byAgent: Array<{ name: string; total: number }>
+  byAgent: Array<{ id?: string; name: string; total: number }>
   byCampaign: Array<{ name: string; total: number }>
   fields: Array<{
     fieldId: string
@@ -1326,12 +1326,25 @@ export type OperationSummary = {
     filled: number
     empty: number
     values: Array<{ label: string; total: number }>
-    byAgent: Array<{ name: string; total: number }>
+    byAgent: Array<{ id?: string; name: string; total: number }>
   }>
 }
 
-export async function getOperationSummary(): Promise<OperationSummary> {
-  const res = await apiFetch(`${API_BASE_URL}/reports/operation-summary`, {
+export async function getOperationSummary(filters?: {
+  dateFrom?: string
+  dateTo?: string
+  assignedUserId?: string
+}): Promise<OperationSummary> {
+  const params = new URLSearchParams()
+
+  if (filters?.dateFrom) params.set('dateFrom', filters.dateFrom)
+  if (filters?.dateTo) params.set('dateTo', filters.dateTo)
+  if (filters?.assignedUserId) params.set('assignedUserId', filters.assignedUserId)
+
+  const query = params.toString()
+  const url = `${API_BASE_URL}/reports/operation-summary${query ? `?${query}` : ''}`
+
+  const res = await apiFetch(url, {
     cache: 'no-store'
   })
 

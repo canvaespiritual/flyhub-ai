@@ -23,10 +23,25 @@ export async function reportRoutes(app: FastifyInstance) {
     }
 
     const tenantId = session.user.tenantId
+    const query = request.query as {
+  dateFrom?: string
+  dateTo?: string
+  assignedUserId?: string
+}
+
+const createdAtFilter =
+  query.dateFrom || query.dateTo
+    ? {
+        ...(query.dateFrom ? { gte: new Date(`${query.dateFrom}T00:00:00.000Z`) } : {}),
+        ...(query.dateTo ? { lte: new Date(`${query.dateTo}T23:59:59.999Z`) } : {})
+      }
+    : undefined
 
     const conversations = await prisma.conversation.findMany({
       where: {
-        tenantId,
+  tenantId,
+  ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
+  ...(query.assignedUserId ? { assignedUserId: query.assignedUserId } : {}),
         ...(session.user.role === 'MANAGER'
           ? {
               OR: [
@@ -58,7 +73,7 @@ export async function reportRoutes(app: FastifyInstance) {
 
     const totalLeads = conversations.length
 
-    const byAgentMap = new Map<string, { name: string; total: number }>()
+    const byAgentMap = new Map<string, { id: string; name: string; total: number }>()
     const byCampaignMap = new Map<string, { name: string; total: number }>()
 
     for (const conversation of conversations) {
@@ -66,9 +81,10 @@ export async function reportRoutes(app: FastifyInstance) {
       const agentName = conversation.assignedUser?.name ?? 'Sem responsável'
 
       byAgentMap.set(agentKey, {
+        id: agentKey,
         name: agentName,
         total: (byAgentMap.get(agentKey)?.total ?? 0) + 1
-      })
+        })
 
       const campaignKey = conversation.campaign?.id ?? 'no-campaign'
       const campaignName = conversation.campaign?.name ?? 'Sem campanha'
