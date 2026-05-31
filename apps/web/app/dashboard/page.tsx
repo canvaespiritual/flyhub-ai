@@ -302,6 +302,7 @@ export default function DashboardPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [pushLoading, setPushLoading] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
+  const [leadSidebarRefreshKey, setLeadSidebarRefreshKey] = useState(0)
   const selectedConversationIdRef = useRef<string | null>(null)
 const currentUserRef = useRef<CurrentUser | null>(null)
 
@@ -546,7 +547,9 @@ console.log('[REALTIME_EVENT]', {
 
             if (incomingMessage.conversationId === selectedConversationIdRef.current) {
               upsertMessage(incomingMessage)
+              setLeadSidebarRefreshKey((value) => value + 1)
             }
+
 
             setConversations((prev) => {
               const result = applyRealtimeMessageToConversationList(
@@ -903,7 +906,11 @@ async function handleTogglePush() {
 </div>
       <div className="hidden h-full min-h-0 overflow-hidden xl:block">
   {lead && selectedConversation ? (
-    <LeadSidebar lead={lead} conversationId={selectedConversation.id} />
+    <LeadSidebar
+  lead={lead}
+  conversationId={selectedConversation.id}
+  refreshKey={leadSidebarRefreshKey}
+/>
   ) : null}
 </div>
     </div>

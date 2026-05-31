@@ -10,6 +10,7 @@ import {
 type Props = {
   lead: Lead
   conversationId: string
+  refreshKey?: number
 }
 
 function normalizePhoneForWhatsApp(phone?: string) {
@@ -101,7 +102,7 @@ function buildLeadSummary(
 
   return lines.join('\n')
 }
-export function LeadSidebar({ lead, conversationId }: Props) {
+export function LeadSidebar({ lead, conversationId, refreshKey }: Props) {
   const [entries, setEntries] = useState<ConversationFieldEntry[]>([])
   const [loadingFields, setLoadingFields] = useState(false)
   const [savingFieldId, setSavingFieldId] = useState<string | null>(null)
@@ -166,8 +167,8 @@ async function runExtractor() {
   }
 
   useEffect(() => {
-    void loadFields()
-  }, [conversationId])
+  void loadFields()
+}, [conversationId, refreshKey])
 
   function startEdit(entry: ConversationFieldEntry) {
     setEditingFieldId(entry.field.id)
