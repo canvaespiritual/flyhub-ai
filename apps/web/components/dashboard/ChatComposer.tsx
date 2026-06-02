@@ -64,6 +64,7 @@ export function ChatComposer({ onSend, onSendMedia }: Props) {
   const [recordedAudioMimeType, setRecordedAudioMimeType] = useState<string>('')
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const recordingChunksRef = useRef<Blob[]>([])
@@ -138,6 +139,9 @@ export function ChatComposer({ onSend, onSendMedia }: Props) {
       })
 
       setValue('')
+      requestAnimationFrame(() => {
+  textareaRef.current?.focus()
+})
     } catch (error) {
       handleError(error)
     } finally {
@@ -471,6 +475,7 @@ export function ChatComposer({ onSend, onSendMedia }: Props) {
 
           <div className="flex min-h-[52px] flex-1 items-end rounded-3xl bg-[#202c33] px-3 py-2">
             <textarea
+            ref={textareaRef}
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={handleKeyDown}
