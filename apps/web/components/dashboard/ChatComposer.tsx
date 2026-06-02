@@ -486,7 +486,7 @@ export function ChatComposer({ onSend, onSendMedia }: Props) {
                     ? 'Legenda opcional para o áudio...'
                     : 'Digite uma mensagem...'
               }
-              disabled={sending || recorderState === 'recording'}
+              readOnly={sending || recorderState === 'recording'}
               rows={1}
               className="max-h-32 min-h-[28px] flex-1 resize-none bg-transparent px-2 py-1 text-[16px] text-white outline-none placeholder:text-neutral-500 disabled:opacity-60 md:text-sm"
             />
